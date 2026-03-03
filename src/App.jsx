@@ -384,6 +384,18 @@ export default function App() {
     return () => { active = false; clearInterval(timerId); };
   }, [userRole]);
 
+  // ─── Realtime: 학생증 사진 변경 신청 자동 갱신 ─────────────────
+  useEffect(() => {
+    const unsubscribe = supabaseStore.subscribe("portal/inquiries", (value) => {
+      try {
+        const parsed = Array.isArray(value) ? value : (typeof value === "string" ? JSON.parse(value) : null);
+        if (Array.isArray(parsed)) setInquiries(parsed);
+        else if (value === null) setInquiries([]);
+      } catch { }
+    });
+    return unsubscribe;
+  }, []);
+
   // ─── Persist helpers ───────────────────────────────────────────
   const persist = useCallback(async (key, data) => { await store.set(key, data); }, []);
   const persistStudentData = useCallback(async (studentId, dataType, data) => {
