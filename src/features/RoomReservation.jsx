@@ -69,20 +69,21 @@ function RoomReservation({ user, reservations, updateReservations, addLog, addNo
     setTimeout(() => {
       const room = ROOMS.find(r => r.id === selectedRoom);
       const slotLabels = selectedSlots.map(sid => TIME_SLOTS.find(t => t.id === sid)?.label).filter(Boolean).sort();
+      const isCADRoom = selectedRoom === "604";
       const res = {
         id: uid(), type: "room", studentId: user.id, studentName: user.name, studentDept: user.dept,
         roomId: selectedRoom, roomName: room.name, date: selectedDate, slots: selectedSlots, slotLabels,
         purpose: purpose || "개인 작업", members: parseInt(members) || 1,
-        status: "approved", createdAt: ts(), autoApproved: true,
+        status: isCADRoom ? "pending" : "approved", createdAt: ts(), autoApproved: !isCADRoom,
       };
       updateReservations(prev => [res, ...prev]);
-      addLog(`[자동승인] ${user.name}(${user.id}) → ${room.name} 예약 | ${selectedDate} ${slotLabels.join(", ")} | ${res.purpose}`, "reservation", { studentId: user.id, roomId: selectedRoom });
-      addNotification(`🏠 실기실 예약: ${user.name} → ${room.name} (${formatDate(selectedDate)} ${slotLabels[0]}${slotLabels.length > 1 ? ` 외 ${slotLabels.length - 1}건` : ""})`, "room");
+      addLog(`[${isCADRoom ? "승인대기" : "자동승인"}] ${user.name}(${user.id}) → ${room.name} 예약 | ${selectedDate} ${slotLabels.join(", ")} | ${res.purpose}`, "reservation", { studentId: user.id, roomId: selectedRoom });
+      addNotification(`🏠 실기실 예약${isCADRoom ? " (승인 대기)" : ""}: ${user.name} → ${room.name} (${formatDate(selectedDate)} ${slotLabels[0]}${slotLabels.length > 1 ? ` 외 ${slotLabels.length - 1}건` : ""})`, "room", isCADRoom);
       sendEmailNotification({
         to: user.email || undefined,
-        subject: `[국민대 건축대학] 실기실 예약 확정`,
+        subject: `[국민대 건축대학] 실기실 예약 ${isCADRoom ? "접수" : "확정"}`,
         body: emailTemplate(user.name, [
-          "실기실 예약이 확정되었습니다.",
+          isCADRoom ? "실기실 예약이 접수되었습니다. 관리자 승인 후 사용 가능합니다." : "실기실 예약이 확정되었습니다.",
           "",
           "[예약 정보]",
           `- 예약자: ${user.name} (${user.id})`,
@@ -92,13 +93,14 @@ function RoomReservation({ user, reservations, updateReservations, addLog, addNo
           `- 시간: ${slotLabels.join(", ")}`,
           `- 목적: ${purpose || "개인 작업"}`,
           `- 인원: ${parseInt(members) || 1}명`,
+          isCADRoom ? `- 상태: ⏳ 승인 대기 중` : "",
           "",
           "[안내]",
-          "- 이용 수칙을 준수해주세요.",
+          isCADRoom ? "- 캐드실은 관리자 승인 후 사용 가능합니다." : "- 이용 수칙을 준수해주세요.",
           "- 예약 변경/취소가 필요하면 근로학생 또는 관리자에게 문의해주세요.",
           "",
           "※※※ 신분증 또는 학생증 지참 무조건 해주셔야합니다 ※※※",
-        ].join("\n")),
+        ].filter(Boolean).join("\n")),
       });
       syncReservationToSheet?.(res);
       setSuccess(res);
@@ -341,12 +343,12 @@ function RoomReservation({ user, reservations, updateReservations, addLog, addNo
       {/* ═══ 예약 완료 강조 팝업 ═══ */}
       <AlertPopup
         isVisible={showPopup}
-        icon="✅"
-        title="예약 신청 완료!"
-        description="실기실 예약이 정상적으로 접수되었습니다."
+        icon={success?.status === "pending" ? "⏳" : "✅"}
+        title={success?.status === "pending" ? "예약 접수 완료!" : "예약 신청 완료!"}
+        description={success?.status === "pending" ? "캐드실 예약이 접수되었습니다. 관리자 승인 후 사용 가능합니다." : "실기실 예약이 정상적으로 접수되었습니다."}
         buttonText="확인했습니다"
         onClose={() => setShowPopup(false)}
-        color={theme.accent}
+        color={success?.status === "pending" ? theme.yellow : theme.accent}
       >
         <div style={{
           background: theme.surface, borderRadius: 14,

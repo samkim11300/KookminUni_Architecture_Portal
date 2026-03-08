@@ -146,7 +146,8 @@ function WorkerDashboard({ reservations, updateReservations, equipRentals, updat
       setEquipmentDB?.(prev => prev.map(eq => {
         const matched = rental.items?.find(i => i.id === eq.id);
         if (!matched) return eq;
-        return { ...eq, available: Math.min(eq.total, (eq.available || 0) + 1) };
+        const returnQty = matched.qty || 1;
+        return { ...eq, available: Math.min(eq.total, (eq.available || 0) + returnQty) };
       }));
       addLog(`[반납완료] ${rental.studentName}의 기구 반납 완료 → ${rental.items.map(i => i.name).join(", ")}`, "equipment");
     }
@@ -305,7 +306,7 @@ function WorkerDashboard({ reservations, updateReservations, equipRentals, updat
                               <Badge color={rental.status === "ready" ? "blue" : "yellow"}>{rental.status === "ready" ? "준비완료" : "준비 필요"}</Badge>
                             </div>
                           </div>
-                          <div style={{ fontSize: 13, color: theme.textMuted, marginBottom: 6 }}>{rental.items.map(i => `${i.icon} ${i.name}`).join("  ·  ")}</div>
+                          <div style={{ fontSize: 13, color: theme.textMuted, marginBottom: 6 }}>{rental.items.map(i => `${i.icon} ${i.name}${i.qty > 1 ? ` x${i.qty}` : ""}`).join("  ·  ")}</div>
                           <div style={{ fontSize: 12, color: theme.textDim, marginBottom: 8 }}>반납: {rental.returnDate}</div>
                           {rental.status === "ready" && (
                             <div style={{ marginBottom: 8 }}>
@@ -519,6 +520,48 @@ function WorkerDashboard({ reservations, updateReservations, equipRentals, updat
           </Card>
         </div>
       </div>
+
+      {/* ═══ 승인 대기 예약 (캐드실) ═══ */}
+      {pendingRes.length > 0 && (
+        <>
+          <SectionTitle icon={<Icons.alert size={16} color={theme.yellow} />}>승인 대기 예약</SectionTitle>
+          <Card style={{ padding: 0, overflow: "hidden", maxHeight: 350, overflowY: "auto", marginBottom: 20, borderColor: theme.yellowBorder }}>
+            {pendingRes.map((res, i) => (
+              <div key={res.id} style={{ padding: "14px 18px", borderBottom: i < pendingRes.length - 1 ? `1px solid ${theme.border}` : "none", background: theme.yellowBg }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <span style={{ fontSize: 14, fontWeight: 600 }}>{res.studentName}</span>
+                    <span style={{ fontSize: 12, color: theme.textMuted, marginLeft: 8 }}>{res.studentDept}</span>
+                  </div>
+                  <Badge color="yellow">승인 대기</Badge>
+                </div>
+                <div style={{ fontSize: 13, color: theme.textMuted, marginTop: 4 }}>{res.roomName} · {res.date} · {res.slotLabels?.join(", ")}</div>
+                {res.purpose && <div style={{ fontSize: 12, color: theme.textDim, marginTop: 2 }}>목적: {res.purpose}</div>}
+                <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                  <Button size="sm" onClick={() => {
+                    updateReservations(prev => prev.map(r => r.id === res.id ? { ...r, status: "approved" } : r));
+                    addLog(`[승인] ${res.studentName}(${res.studentId}) → ${res.roomName} 예약 승인 | ${res.date} ${res.slotLabels?.join(", ")}`, "reservation");
+                    sendEmailNotification?.({
+                      to: res.studentEmail || undefined,
+                      subject: `[국민대 건축대학] 캐드실 예약 승인`,
+                      body: `${res.studentName}님의 캐드실 예약이 승인되었습니다.\n\n- 날짜: ${res.date}\n- 시간: ${res.slotLabels?.join(", ")}\n- 목적: ${res.purpose}\n\n※※※ 신분증 또는 학생증 지참 무조건 해주셔야합니다 ※※※`,
+                    });
+                  }}>✓ 승인</Button>
+                  <Button size="sm" variant="ghost" onClick={() => {
+                    updateReservations(prev => prev.map(r => r.id === res.id ? { ...r, status: "rejected" } : r));
+                    addLog(`[거절] ${res.studentName}(${res.studentId}) → ${res.roomName} 예약 거절 | ${res.date} ${res.slotLabels?.join(", ")}`, "reservation");
+                    sendEmailNotification?.({
+                      to: res.studentEmail || undefined,
+                      subject: `[국민대 건축대학] 캐드실 예약 거절`,
+                      body: `${res.studentName}님의 캐드실 예약이 거절되었습니다.\n\n- 날짜: ${res.date}\n- 시간: ${res.slotLabels?.join(", ")}\n\n문의사항은 교학팀으로 연락해주세요.`,
+                    });
+                  }} style={{ color: theme.red }}>✕ 거절</Button>
+                </div>
+              </div>
+            ))}
+          </Card>
+        </>
+      )}
 
       {/* ═══ 활성 예약 ═══ */}
       <SectionTitle icon={<Icons.calendar size={16} color={theme.accent} />}>활성 예약</SectionTitle>

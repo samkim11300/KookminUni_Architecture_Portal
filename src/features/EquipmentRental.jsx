@@ -35,6 +35,7 @@ function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, 
   const [showPopup, setShowPopup] = useState(false);
   const [showWeekendPopup, setShowWeekendPopup] = useState(false);
   const [filterCat, setFilterCat] = useState("전체");
+  const [standQty, setStandQty] = useState(1);
 
   const allCats = [...new Set(equipmentDB.map(e => e.category))];
   const orderedCats = categoryOrder && categoryOrder.length > 0
@@ -43,7 +44,10 @@ function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, 
   const categories = ["전체", ...orderedCats];
   const filtered = filterCat === "전체" ? equipmentDB : equipmentDB.filter(e => e.category === filterCat);
 
-  const toggleEquip = (id) => setSelected(prev => prev === id ? null : id);
+  const toggleEquip = (id) => {
+    setSelected(prev => prev === id ? null : id);
+    setStandQty(1);
+  };
 
   const handleSubmit = () => {
     if (!selected) return;
@@ -53,15 +57,16 @@ function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, 
     setTimeout(() => {
       const item = equipmentDB.find(e => e.id === selected);
       if (!item) return;
+      const qty = item.isStand ? Math.min(standQty, item.available) : 1;
       const rental = {
         id: uid(), type: "equipment", studentId: user.id, studentName: user.name, studentDept: user.dept, studentEmail: user.email || "",
-        items: [{ id: item.id, name: item.name, icon: item.icon }],
+        items: [{ id: item.id, name: item.name, icon: item.icon, qty }],
         returnDate, note: note || "", status: "pending_pickup", createdAt: ts(),
       };
       updateEquipRentals(prev => [rental, ...prev]);
-      setEquipmentDB(prev => prev.map(e => e.id === item.id ? { ...e, available: Math.max(0, e.available - 1) } : e));
-      addLog(`[기구대여] ${user.name}(${user.id}) → ${item.name} | 반납: ${returnDate}`, "equipment", { studentId: user.id });
-      addNotification(`🔧 기구대여 요청: ${user.name} → ${item.name}`, "equipment", true);
+      setEquipmentDB(prev => prev.map(e => e.id === item.id ? { ...e, available: Math.max(0, e.available - qty) } : e));
+      addLog(`[기구대여] ${user.name}(${user.id}) → ${item.name} x${qty} | 반납: ${returnDate}`, "equipment", { studentId: user.id });
+      addNotification(`🔧 기구대여 요청: ${user.name} → ${item.name} x${qty}`, "equipment", true);
       setSuccess(rental);
       setShowPopup(true);
       setSubmitting(false);
@@ -181,6 +186,21 @@ function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, 
                   </div>
                 </Card>
 
+                {/* 전시받침대 개수 선택 */}
+                {eq.isStand && (
+                  <>
+                    <SectionTitle icon={<Icons.package size={16} color={theme.accent} />}>수량 선택</SectionTitle>
+                    <Card style={{ marginBottom: 24 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <button onClick={() => setStandQty(q => Math.max(1, q - 1))} style={{ width: 36, height: 36, borderRadius: theme.radiusSm, border: `1px solid ${theme.border}`, background: theme.surface, cursor: "pointer", fontSize: 18, fontWeight: 700, color: theme.text, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: theme.font }}>−</button>
+                        <span style={{ fontSize: 20, fontWeight: 800, color: theme.accent, fontFamily: theme.fontMono, minWidth: 40, textAlign: "center" }}>{standQty}</span>
+                        <button onClick={() => setStandQty(q => Math.min(eq.available, q + 1))} style={{ width: 36, height: 36, borderRadius: theme.radiusSm, border: `1px solid ${theme.border}`, background: theme.surface, cursor: "pointer", fontSize: 18, fontWeight: 700, color: theme.text, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: theme.font }}>+</button>
+                        <span style={{ fontSize: 12, color: theme.textDim }}>/ 최대 {eq.available}개</span>
+                      </div>
+                    </Card>
+                  </>
+                )}
+
                 {/* Return Info */}
                 <SectionTitle icon={<Icons.calendar size={16} color={theme.accent} />}>반납 정보</SectionTitle>
                 <Card style={{ marginBottom: 24 }}>
@@ -206,7 +226,7 @@ function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, 
                 <Card style={{ marginBottom: 20, background: theme.surface, padding: 16 }}>
                   <div style={{ fontSize: 12, color: theme.textMuted, marginBottom: 8 }}>대여 요약</div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
-                    <Badge color="accent">{eq.icon} {eq.name}</Badge>
+                    <Badge color="accent">{eq.icon} {eq.name}{eq.isStand ? ` x${standQty}` : ""}</Badge>
                     <Badge color="blue">반납: {returnDate}</Badge>
                   </div>
                 </Card>
@@ -246,6 +266,18 @@ function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, 
                   </div>
                 </div>
               </div>
+              {/* 전시받침대 수량 선택 (모바일) */}
+              {eq.isStand && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: theme.textMuted, marginBottom: 8 }}>수량 선택</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <button onClick={() => setStandQty(q => Math.max(1, q - 1))} style={{ width: 36, height: 36, borderRadius: theme.radiusSm, border: `1px solid ${theme.border}`, background: theme.surface, cursor: "pointer", fontSize: 18, fontWeight: 700, color: theme.text, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: theme.font }}>−</button>
+                    <span style={{ fontSize: 20, fontWeight: 800, color: theme.accent, fontFamily: theme.fontMono, minWidth: 40, textAlign: "center" }}>{standQty}</span>
+                    <button onClick={() => setStandQty(q => Math.min(eq.available, q + 1))} style={{ width: 36, height: 36, borderRadius: theme.radiusSm, border: `1px solid ${theme.border}`, background: theme.surface, cursor: "pointer", fontSize: 18, fontWeight: 700, color: theme.text, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: theme.font }}>+</button>
+                    <span style={{ fontSize: 12, color: theme.textDim }}>/ 최대 {eq.available}개</span>
+                  </div>
+                </div>
+              )}
               <div style={{ marginBottom: 16 }}>
                 <Input label="반납 예정일" type="date" value={returnDate} onChange={e => {
                   const val = e.target.value;
@@ -263,7 +295,7 @@ function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, 
               <Card style={{ marginBottom: 16, background: theme.surface, padding: 14 }}>
                 <div style={{ fontSize: 12, color: theme.textMuted, marginBottom: 8 }}>대여 요약</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  <Badge color="accent">{eq.icon} {eq.name}</Badge>
+                  <Badge color="accent">{eq.icon} {eq.name}{eq.isStand ? ` x${standQty}` : ""}</Badge>
                   <Badge color="blue">반납: {returnDate}</Badge>
                 </div>
               </Card>

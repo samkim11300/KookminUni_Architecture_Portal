@@ -48,7 +48,8 @@ export const EDITABLE = {
     { id: "028", name: "청소기", category: "청소", available: 1, total: 1, deposit: false, maxDays: 1, icon: "🧹" },
     // 기타 장비
     { id: "029", name: "집게형 장비", category: "기타", available: 1, total: 1, deposit: false, maxDays: 1, icon: "🔧" },
-    { id: "030", name: "전시받침대", category: "기타", available: 1, total: 1, deposit: false, maxDays: 1, icon: "🔧" },
+    { id: "030", name: "전시받침대 (원형)", category: "기타", available: 5, total: 5, deposit: false, maxDays: 1, icon: "🔧", isStand: true },
+    { id: "032", name: "전시받침대 (사각형)", category: "기타", available: 5, total: 5, deposit: false, maxDays: 1, icon: "🔧", isStand: true },
     { id: "031", name: "건축학과 깃발", category: "기타", available: 1, total: 1, deposit: false, maxDays: 1, icon: "🚩" },
   ],
   equipmentReturnChecklist: [
@@ -57,7 +58,8 @@ export const EDITABLE = {
   ],
   timeSlots: [
     { id: "01", label: "09:00–10:00", start: 9 }, { id: "02", label: "10:00–11:00", start: 10 },
-    { id: "03", label: "11:00–12:00", start: 11 }, { id: "04", label: "12:00–13:00", start: 12 },
+    { id: "03", label: "11:00–12:00", start: 11 },
+    // 점심시간 12:00–13:00 제외
     { id: "05", label: "13:00–14:00", start: 13 }, { id: "06", label: "14:00–15:00", start: 14 },
     { id: "07", label: "15:00–16:00", start: 15 }, { id: "08", label: "16:00–17:00", start: 16 },
   ],
