@@ -1003,22 +1003,13 @@ function AdminPortal({ onLogout, workers, updateWorkers, logs, addLog, updateLog
 
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                       {inq.idPhotoDriveFileId ? (
-                        <>
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            onClick={() => window.open(`https://drive.google.com/file/d/${inq.idPhotoDriveFileId}/view`, "_blank")}
-                          >
-                            <Icons.file size={14} /> 사진 미리보기 (Drive)
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => window.open(`https://drive.google.com/uc?id=${inq.idPhotoDriveFileId}&export=download`, "_blank")}
-                          >
-                            다운로드
-                          </Button>
-                        </>
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => window.open(`https://drive.google.com/file/d/${inq.idPhotoDriveFileId}/view`, "_blank")}
+                        >
+                          <Icons.file size={14} /> 사진 미리보기 (Drive)
+                        </Button>
                       ) : (
                         <span style={{ fontSize: 12, color: theme.textDim, padding: "4px 8px" }}>첨부 파일 없음</span>
                       )}
