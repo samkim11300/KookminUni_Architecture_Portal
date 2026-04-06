@@ -300,7 +300,10 @@ function WorkerDashboard({ reservations, updateReservations, equipRentals, updat
                       {activeRentals.map(rental => (
                         <div key={rental.id} style={{ padding: 14, background: theme.card, borderRadius: theme.radiusSm, border: `1px solid ${theme.border}` }}>
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                            <div style={{ fontSize: 14, fontWeight: 700, color: theme.text }}>{rental.studentName} <span style={{ color: theme.textMuted, fontWeight: 400 }}>({rental.studentId})</span></div>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: theme.text }}>
+                              {rental.studentName} <span style={{ color: theme.textMuted, fontWeight: 400 }}>({rental.studentId})</span>
+                              {rental.phone && <span style={{ fontSize: 12, color: theme.textMuted, fontWeight: 400, marginLeft: 8 }}>📞 {rental.phone}</span>}
+                            </div>
                             <div style={{ display: "flex", gap: 6 }}>
                               {rental.returnDate && rental.returnDate < today && <Badge color="red">연체</Badge>}
                               <Badge color={rental.status === "ready" ? "blue" : "yellow"}>{rental.status === "ready" ? "준비완료" : "준비 필요"}</Badge>

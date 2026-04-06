@@ -192,7 +192,15 @@ export default function App() {
         if (warn) setWarnings(warn);
         if (blk) setBlacklist(blk);
         if (pblk) setPrintBlacklist(pblk);
-        if (savedBanner) setBannerText(savedBanner);
+        // 배너: Supabase를 단일 진실 원천(SSOT)으로 사용
+        const serverBanner = await supabaseStore.get("portal/bannerText");
+        if (serverBanner && typeof serverBanner === "object" && serverBanner.title) {
+          setBannerText(serverBanner);
+          store.set("bannerText", serverBanner).catch(() => { });
+        } else if (savedBanner) {
+          setBannerText(savedBanner);
+          supabaseStore.set("portal/bannerText", savedBanner).catch(() => { });
+        }
         if (certs) setCertificates(certs);
         if (res) setReservations(res);
         if (eq) setEquipRentals(eq);
@@ -544,6 +552,7 @@ export default function App() {
     setBannerText(prev => {
       const next = typeof updater === "function" ? updater(prev) : updater;
       persist("bannerText", next);
+      supabaseStore.set("portal/bannerText", next).catch(() => { });
       return next;
     });
   }, [persist]);
