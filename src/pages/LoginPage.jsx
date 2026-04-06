@@ -707,10 +707,10 @@ function LoginPage({ onLogin, onReset, onHelp, workers, verifyStudentInSheet, re
           {/* Welcome Banner */}
           <div style={{ textAlign: "center", marginBottom: 28, marginTop: 8 }}>
             <div style={{ fontSize: isMobile ? 28 : 36, fontWeight: 800, letterSpacing: "-1px", lineHeight: 1.2, background: "linear-gradient(135deg, #FF6B00 0%, #FF9A3C 60%, #FFD580 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>
-              신입생분들 입학을 진심으로 환영합니다!
+
             </div>
             <div style={{ fontSize: 13, color: theme.textMuted, marginTop: 8, letterSpacing: "0.3px" }}>
-              세상에서 가장 긴 여행은 개강한 날부터 마감하는 날까지입니다 — 함께 떠나봅시다! 🎉
+
             </div>
           </div>
 
