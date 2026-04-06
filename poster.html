@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>국민대학교 건축대학 포털사이트 이용 안내 포스터</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    @page { size: A3 portrait; margin: 0; }
+    body {
+      font-family: 'Noto Sans KR', 'DM Sans', sans-serif;
+      background: #f0f0f0;
+      color: #1a1a1a;
+      display: flex;
+      justify-content: center;
+      padding: 16px;
+    }
+    @media print {
+      body { padding: 0; background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .poster { border-radius: 0; box-shadow: none; }
+    }
+    .poster {
+      width: 900px;
+      max-width: 100%;
+      background: #ffffff;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.08);
+      position: relative;
+    }
+    .poster::before {
+      content: '';
+      position: absolute;
+      top: -40px; left: -60px;
+      width: 500px; height: 300px;
+      background: radial-gradient(ellipse, rgba(255,120,0,0.04) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    /* ── HEADER ── */
+    .header {
+      padding: 22px 32px 16px;
+      background: linear-gradient(135deg, rgba(255,107,0,0.04) 0%, transparent 100%);
+      border-bottom: 1px solid rgba(0,0,0,0.05);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .university-label {
+      font-size: 10px; font-weight: 600; letter-spacing: 3px;
+      text-transform: uppercase; color: #c47a20; margin-bottom: 6px;
+    }
+    .header-title {
+      font-size: 28px; font-weight: 900; letter-spacing: -1px; line-height: 1.15;
+      background: linear-gradient(135deg, #FF6B00 0%, #FF9A3C 50%, #FFD580 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .header-subtitle { font-size: 12px; color: #888; margin-top: 6px; }
+    .url-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 5px 12px; background: rgba(255,107,0,0.07);
+      border: 1px solid rgba(255,107,0,0.18); border-radius: 16px;
+      font-size: 11px; font-weight: 600; color: #d47a1a; margin-top: 10px;
+    }
+    .url-badge .dot {
+      width: 5px; height: 5px; border-radius: 50%;
+      background: #22c55e; box-shadow: 0 0 4px rgba(34,197,94,0.5);
+    }
+    .header-qr { width: 100px; height: 100px; border-radius: 10px; object-fit: contain; flex-shrink: 0; }
+
+    /* ── SECTION TITLES ── */
+    .sec-title {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+    }
+    .sec-label { font-size: 9px; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase; color: #d47a1a; }
+    .sec-label-dim { color: #aaa; }
+    .sec-line { flex: 1; height: 1px; background: rgba(0,0,0,0.06); }
+
+    /* ── STEPS ── */
+    .steps { padding: 12px 32px 10px; }
+    .steps-row { display: flex; gap: 10px; }
+    .step {
+      flex: 1; background: #f8f9fa; border: 1px solid rgba(0,0,0,0.06);
+      border-radius: 10px; padding: 10px 12px; position: relative;
+    }
+    .step-num {
+      width: 20px; height: 20px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 800; color: #fff; margin-bottom: 6px;
+    }
+    .step:nth-child(1) .step-num { background: linear-gradient(135deg, #FF6B00, #FF9A3C); }
+    .step:nth-child(2) .step-num { background: linear-gradient(135deg, #22c55e, #34d399); }
+    .step:nth-child(3) .step-num { background: linear-gradient(135deg, #3b82f6, #60a5fa); }
+    .step-t { font-size: 12px; font-weight: 700; color: #1a1a1a; margin-bottom: 4px; }
+    .step-d { font-size: 10px; color: #777; line-height: 1.55; }
+    .step-arrow {
+      position: absolute; right: -14px; top: 50%; transform: translateY(-50%);
+      font-size: 14px; color: rgba(0,0,0,0.12); z-index: 2;
+    }
+
+    /* ── FEATURES ── */
+    .features { padding: 10px 32px; }
+    .feat-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+    .feat {
+      background: #f8f9fa; border: 1px solid rgba(0,0,0,0.05);
+      border-radius: 10px; padding: 10px 6px; text-align: center;
+      position: relative; overflow: hidden;
+    }
+    .feat::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; }
+    .feat:nth-child(1)::before { background: linear-gradient(90deg, transparent, #6BA3D6, transparent); }
+    .feat:nth-child(2)::before { background: linear-gradient(90deg, transparent, #6EBD8E, transparent); }
+    .feat:nth-child(3)::before { background: linear-gradient(90deg, transparent, #E9A56A, transparent); }
+    .feat:nth-child(4)::before { background: linear-gradient(90deg, transparent, #a78bfa, transparent); }
+    .feat:nth-child(5)::before { background: linear-gradient(90deg, transparent, #f97316, transparent); }
+    .feat:nth-child(6)::before { background: linear-gradient(90deg, transparent, #22d3ee, transparent); }
+    .feat-icon { font-size: 20px; margin-bottom: 4px; display: block; }
+    .feat-name { font-size: 11px; font-weight: 700; margin-bottom: 3px; }
+    .feat:nth-child(1) .feat-name { color: #3a7bb8; }
+    .feat:nth-child(2) .feat-name { color: #2d8a56; }
+    .feat:nth-child(3) .feat-name { color: #c07d30; }
+    .feat:nth-child(4) .feat-name { color: #7c5cc4; }
+    .feat:nth-child(5) .feat-name { color: #d4650e; }
+    .feat:nth-child(6) .feat-name { color: #0e8fa0; }
+    .feat-desc { font-size: 9px; color: #888; line-height: 1.45; }
+
+    /* ── LOGIN GUIDE ── */
+    .login { padding: 10px 32px; }
+    .login-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .login-block {
+      background: #f8f9fa; border: 1px solid rgba(0,0,0,0.06);
+      border-radius: 10px; padding: 10px 14px;
+    }
+    .login-head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+    .login-icon {
+      width: 22px; height: 22px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center; font-size: 12px;
+    }
+    .login-label { font-size: 12px; font-weight: 700; }
+    .login-steps { display: flex; flex-direction: column; gap: 6px; }
+    .login-step { display: flex; gap: 8px; align-items: flex-start; }
+    .login-sn {
+      width: 16px; height: 16px; border-radius: 50%;
+      font-size: 9px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px;
+    }
+    .login-st { font-size: 11px; color: #555; line-height: 1.5; }
+    .stu .login-icon { background: rgba(34,160,80,0.1); }
+    .stu .login-label { color: #1a8a44; }
+    .stu .login-sn { background: rgba(34,160,80,0.1); color: #1a8a44; }
+    .wk .login-icon { background: rgba(40,100,210,0.1); }
+    .wk .login-label { color: #2563c0; }
+    .wk .login-sn { background: rgba(40,100,210,0.1); color: #2563c0; }
+
+    /* ── ALERTS ── */
+    .alerts { padding: 0 32px; display: flex; gap: 8px; margin-bottom: 10px; }
+    .alert-box { flex: 1; padding: 8px 12px; border-radius: 8px; }
+    .alert-caution {
+      background: rgba(239,68,68,0.04); border: 1px solid rgba(239,68,68,0.12);
+      border-left: 3px solid #dc2626;
+    }
+    .alert-tip {
+      background: rgba(34,160,80,0.04); border: 1px solid rgba(34,160,80,0.12);
+      border-left: 3px solid #1a8a44;
+    }
+    .alert-title { font-size: 10px; font-weight: 700; margin-bottom: 3px; }
+    .alert-caution .alert-title { color: #dc2626; }
+    .alert-tip .alert-title { color: #1a8a44; }
+    .alert-text { font-size: 9px; line-height: 1.5; }
+    .alert-caution .alert-text { color: #a33; }
+    .alert-tip .alert-text { color: #2a7a4a; }
+
+    /* ── FAQ ── */
+    .faq { padding: 0 32px 10px; }
+    .faq-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+    .faq-card {
+      padding: 8px 8px; background: #f8f9fa;
+      border: 1px solid rgba(0,0,0,0.05); border-radius: 8px;
+    }
+    .faq-q { font-size: 10px; font-weight: 600; color: #1a1a1a; margin-bottom: 3px; display: flex; align-items: center; gap: 4px; }
+    .faq-a { font-size: 9px; color: #888; line-height: 1.45; }
+
+    /* ── LINKS ── */
+    .links { padding: 0 32px 8px; }
+    .links-row { display: flex; gap: 6px; flex-wrap: wrap; }
+    .link-chip {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 5px 10px; background: #f4f5f6;
+      border: 1px solid rgba(0,0,0,0.06); border-radius: 6px;
+      font-size: 10px; font-weight: 500; color: #555; text-decoration: none;
+    }
+
+    /* ── INFO BAR ── */
+    .info-bar {
+      margin: 0 32px 8px; padding: 10px 18px;
+      background: linear-gradient(135deg, rgba(255,107,0,0.04) 0%, rgba(255,154,60,0.02) 100%);
+      border: 1px solid rgba(255,107,0,0.1); border-radius: 10px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .info-item { display: flex; align-items: center; gap: 6px; }
+    .info-emoji { font-size: 14px; }
+    .info-label { font-size: 9px; color: #aaa; }
+    .info-value { font-size: 11px; font-weight: 600; color: #333; }
+    .info-div { width: 1px; height: 28px; background: rgba(0,0,0,0.06); }
+
+    /* ── FOOTER ── */
+    .footer {
+      padding: 8px 32px 12px;
+      border-top: 1px solid rgba(0,0,0,0.05);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .footer-left { font-size: 9px; color: #aaa; line-height: 1.5; }
+    .footer-qr { display: flex; align-items: center; gap: 8px; }
+    .footer-qr-label { font-size: 9px; color: #aaa; text-align: right; }
+    .footer-qr img { width: 44px; height: 44px; border-radius: 5px; }
+  </style>
+</head>
+<body>
+
+<div class="poster">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div>
+      <div class="university-label">국민대학교 건축대학</div>
+      <div class="header-title">포털사이트 이용 안내</div>
+      <div class="header-subtitle">실기실 예약 · 물품 대여 · 출력 신청 — 한 곳에서 간편하게</div>
+      <div class="url-badge">
+        <span class="dot"></span>
+        https://kookmin-uni-architecture-portal.vercel.app/
+      </div>
+    </div>
+    <img src="/qr-code.jpg" alt="QR Code" class="header-qr" />
+  </div>
+
+  <!-- QUICK START -->
+  <div class="steps">
+    <div class="sec-title">
+      <span class="sec-label">HOW TO START</span>
+      <div class="sec-line"></div>
+      <span class="sec-label sec-label-dim">3단계로 시작하기</span>
+    </div>
+    <div class="steps-row">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-t">안전교육이수증 업로드</div>
+        <div class="step-d">
+          로그인 화면의 <strong style="color:#e88a30;">'SIGN UP'</strong> 클릭 →
+          학번, 이름, 학년, 전공, 이메일 입력 →
+          4자리 비밀번호 설정 → 이수증 파일 제출
+        </div>
+        <span class="step-arrow">→</span>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-t">로그인</div>
+        <div class="step-d">
+          학번, 이름, 4자리 비밀번호 입력 →
+          <strong style="color:#1a8a44;">'로그인'</strong> 버튼 클릭
+          <br/><span style="font-size:9px; opacity:0.6;">💡 '로그인 기억' 체크 시 자동 로그인</span>
+        </div>
+        <span class="step-arrow">→</span>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-t">서비스 이용</div>
+        <div class="step-d">
+          대시보드에서 현황 확인 →
+          원하는 메뉴(예약/대여/출력) 선택 →
+          신청 완료!
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FEATURES -->
+  <div class="features">
+    <div class="sec-title">
+      <span class="sec-label">FEATURES</span>
+      <div class="sec-line"></div>
+      <span class="sec-label sec-label-dim">주요 기능</span>
+    </div>
+    <div class="feat-grid">
+      <div class="feat"><span class="feat-icon">🏠</span><div class="feat-name">실기실 예약</div><div class="feat-desc">모형제작실, 3D프린팅실, 캐드실, 레이저커팅실 등 예약</div></div>
+      <div class="feat"><span class="feat-icon">🔧</span><div class="feat-name">물품 대여</div><div class="feat-desc">전동공구, 수공구, 계측장비 등 실시간 재고 확인 후 대여</div></div>
+      <div class="feat"><span class="feat-icon">🖨️</span><div class="feat-name">출력 신청</div><div class="feat-desc">Coated, Matt, Gloss, 흑백, 컬러 등 다양한 출력 요청</div></div>
+      <div class="feat"><span class="feat-icon">📊</span><div class="feat-name">대시보드</div><div class="feat-desc">예약, 대여, 출력, 문의 현황을 한눈에 확인</div></div>
+      <div class="feat"><span class="feat-icon">📋</span><div class="feat-name">양식함</div><div class="feat-desc">필요한 양식 파일을 플로팅 버튼으로 간편 다운로드</div></div>
+      <div class="feat"><span class="feat-icon">💬</span><div class="feat-name">문의하기</div><div class="feat-desc">포털에서 바로 문의 작성, 답변 확인 가능</div></div>
+    </div>
+  </div>
+
+  <!-- LOGIN GUIDE -->
+  <div class="login">
+    <div class="sec-title">
+      <span class="sec-label">LOGIN GUIDE</span>
+      <div class="sec-line"></div>
+      <span class="sec-label sec-label-dim">역할별 로그인</span>
+    </div>
+    <div class="login-cols">
+      <div class="login-block stu">
+        <div class="login-head"><div class="login-icon">👩‍🎓</div><div class="login-label">학생 로그인</div></div>
+        <div class="login-steps">
+          <div class="login-step"><div class="login-sn">1</div><div class="login-st"><strong>최초 1회</strong> 안전교육이수증 업로드 (SIGN UP)</div></div>
+          <div class="login-step"><div class="login-sn">2</div><div class="login-st"><strong>학번 + 이름 + 비밀번호(4자리)</strong> 입력</div></div>
+          <div class="login-step"><div class="login-sn">3</div><div class="login-st">로그인 버튼 클릭 → 학생 포털 진입</div></div>
+        </div>
+      </div>
+      <div class="login-block wk">
+        <div class="login-head"><div class="login-icon">🔧</div><div class="login-label">근로학생 / 관리자 로그인</div></div>
+        <div class="login-steps">
+          <div class="login-step"><div class="login-sn">1</div><div class="login-st">상단 탭에서 <strong>'근로학생'</strong> 또는 <strong>'관리자'</strong> 선택</div></div>
+          <div class="login-step"><div class="login-sn">2</div><div class="login-st">부여받은 <strong>아이디 + 비밀번호</strong> 입력</div></div>
+          <div class="login-step"><div class="login-sn">3</div><div class="login-st">관리 화면 접속 → 예약/대여/출력 처리</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ALERTS -->
+  <div class="alerts">
+    <div class="alert-box alert-caution">
+      <div class="alert-title">⚠️ 주의사항</div>
+      <div class="alert-text">
+        <strong>안전교육 미이수 시</strong> 실기실 예약·물품 대여 불가. 반드시 이수증을 먼저 업로드하세요.
+        반납기한 초과 시 <strong>연체 경고</strong> 부여, 블랙리스트 등록 시 포털 이용 제한.
+      </div>
+    </div>
+    <div class="alert-box alert-tip">
+      <div class="alert-title">💡 이런 것도 가능해요!</div>
+      <div class="alert-text">
+        <strong>학생증 사진 변경</strong> — 로그인 화면에서 바로 신청 │
+        <strong>해동예약포털</strong> — 사이드바에서 해동KL 장비 예약 │
+        <strong>다크모드</strong> — 🌙 버튼으로 전환
+      </div>
+    </div>
+  </div>
+
+  <!-- FAQ -->
+  <div class="faq">
+    <div class="sec-title">
+      <span class="sec-label">FAQ</span>
+      <div class="sec-line"></div>
+      <span class="sec-label sec-label-dim">자주 묻는 질문</span>
+    </div>
+    <div class="faq-grid">
+      <div class="faq-card"><div class="faq-q">🔐 비밀번호를 잊었어요</div><div class="faq-a">이수증 업로드 시 설정한 4자리 숫자입니다. 이수증을 다시 업로드하여 재설정하세요.</div></div>
+      <div class="faq-card"><div class="faq-q">🚫 이수증 후 로그인 안 돼요</div><div class="faq-a">관리자 승인이 필요합니다. 교학팀(복지관 602호)에 문의하세요.</div></div>
+      <div class="faq-card"><div class="faq-q">📦 물품 재고가 0이에요</div><div class="faq-a">다른 학생의 반납을 기다리거나 근로학생에게 직접 문의해 주세요.</div></div>
+      <div class="faq-card"><div class="faq-q">🖨️ 출력물 처리 시간은?</div><div class="faq-a">근무시간 내 순차 처리됩니다. '출력 신청' 탭에서 진행 상태를 확인하세요.</div></div>
+    </div>
+  </div>
+
+  <!-- QUICK LINKS -->
+  <div class="links">
+    <div class="sec-title">
+      <span class="sec-label">QUICK LINKS</span>
+      <div class="sec-line"></div>
+      <span class="sec-label sec-label-dim">바로가기</span>
+    </div>
+    <div class="links-row">
+      <a href="https://www.kookmin.ac.kr" class="link-chip">🏫 국민대학교</a>
+      <a href="https://archi.kookmin.ac.kr/" class="link-chip">🏛️ 건축대학</a>
+      <a href="https://portal.kookmin.ac.kr/por/ln" class="link-chip">📋 ON국민</a>
+      <a href="https://ecampus.kookmin.ac.kr/login/index.php" class="link-chip">📚 가상대학</a>
+      <a href="https://lib.kookmin.ac.kr/#/" class="link-chip">📖 성곡도서관</a>
+      <a href="https://unc.doculink.co.kr/index/main.do#reload" class="link-chip">📄 증명서 발급</a>
+      <a href="https://lib.kookmin.ac.kr/facility/reservation/room/all-rooms?roomIndex=1" class="link-chip">🗓️ 해동예약포털</a>
+    </div>
+  </div>
+
+  <!-- INFO BAR -->
+  <div class="info-bar">
+    <div class="info-item"><span class="info-emoji">⏰</span><div><div class="info-label">운영시간</div><div class="info-value">평일 09:00 ~ 17:00</div></div></div>
+    <div class="info-div"></div>
+    <div class="info-item"><span class="info-emoji">📍</span><div><div class="info-label">위치</div><div class="info-value">복지관 602호실 교학팀</div></div></div>
+    <div class="info-div"></div>
+    <div class="info-item"><span class="info-emoji">📞</span><div><div class="info-label">연락처</div><div class="info-value">02-910-6521</div></div></div>
+    <div class="info-div"></div>
+    <div class="info-item"><span class="info-emoji">🌐</span><div><div class="info-label">사이트</div><div class="info-value" style="color:#d47a1a;">kookmin-uni-architecture-portal.vercel.app</div></div></div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <div class="footer-left">
+      국민대학교 건축대학 교학팀<br/>
+      © 2026 Kookmin University School of Architecture Portal
+    </div>
+    <div class="footer-qr">
+      <div class="footer-qr-label">QR 코드를<br/>스캔하세요</div>
+      <img src="/qr-code.jpg" alt="QR Code" />
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>
