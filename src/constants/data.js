@@ -5,7 +5,6 @@ export const EDITABLE = {
   ],
   rooms: [
     { id: "601", name: "모형제작실", floor: "6F", building: "복지관", equipment: "목공 기계, 집진기, 톱날", rules: "반드시 보호장구 착용" },
-    { id: "602", name: "3D프린팅", floor: "6F", building: "복지관", equipment: "프린터 3대", rules: "프린터 사용 후 노즐 청소 필수" },
     { id: "604", name: "캐드실", floor: "6F", building: "복지관", equipment: "3D Modeling 가능한 컴퓨터 다수 보유", rules: "사용후 정리 후 퇴실" },
     { id: "605", name: "레이저커팅실", floor: "6F", building: "복지관", equipment: "레이저 커터 1대", rules: "환기 필수, 가연성 재료 주의" },
     { id: "606", name: "사진실", floor: "6F", building: "복지관", equipment: "작업대 1개", rules: "조명 전원 OFF 후 퇴실" },
@@ -64,9 +63,7 @@ export const EDITABLE = {
     { id: "07", label: "15:00–16:00", start: 15 }, { id: "08", label: "16:00–17:00", start: 16 },
   ],
   workers: [
-    { id: "001", name: "근로학생A", shift: "오전 (09–13시)", username: "worker1", password: import.meta.env.VITE_WORKER1_PASSWORD },
-    { id: "002", name: "근로학생B", shift: "오후 (13–18시)", username: "worker2", password: import.meta.env.VITE_WORKER2_PASSWORD },
-    { id: "003", name: "근로학생C", shift: "야간 (18–21시)", username: "worker3", password: import.meta.env.VITE_WORKER3_PASSWORD },
+    { id: "001", name: "근로학생", shift: "통합", username: "worker1", password: import.meta.env.VITE_WORKER1_PASSWORD },
   ],
   safetySheet: {
     url: "https://script.google.com/macros/s/AKfycbw5gNesXsFsYEHaTOsG50Al_S3y-PLeEEm_3apr2DKO1fQDsHN4Cwh-7wCslKsUvKVR_A/exec",

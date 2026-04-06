@@ -71,6 +71,7 @@ export default function App() {
   const [overdueFlags, setOverdueFlags] = useState({});
   const [warnings, setWarnings] = useState({});
   const [blacklist, setBlacklist] = useState({});
+  const [printBlacklist, setPrintBlacklist] = useState({});
   const [certificates, setCertificates] = useState({});
   const [inquiries, setInquiries] = useState([]);
   const [printRequests, setPrintRequests] = useState([]); // 출력 신청 데이터
@@ -83,6 +84,10 @@ export default function App() {
     ROOMS.forEach(r => { def[r.id] = true; });
     return def;
   }); // 실기실 예약 ON/OFF 상태
+  const [bannerText, setBannerText] = useState({
+    title: "신입생분들 입학을 진심으로 환영합니다!",
+    subtitle: "세상에서 가장 긴 여행은 개강한 날부터 마감하는 날까지입니다 — 함께 떠나봅시다! 🎉"
+  });
   const [dataLoaded, setDataLoaded] = useState(false);
 
   const [equipmentDB, setEquipmentDBRaw] = useState(DEFAULT_EQUIPMENT_DB);
@@ -147,7 +152,7 @@ export default function App() {
         setDataLoaded(true);
 
         // 2단계: 나머지 데이터 백그라운드 로드 (화면 표시 후)
-        const [wk, warn, blk, certs, res, eq, lg, notif, sheet, overdue, inq, prints, visits, visitors, analytics, eqDB, dVisits, savedRoomStatus, savedCategoryOrder] = await Promise.all([
+        const [wk, warn, blk, certs, res, eq, lg, notif, sheet, overdue, inq, prints, visits, visitors, analytics, eqDB, dVisits, savedRoomStatus, savedCategoryOrder, pblk, savedBanner] = await Promise.all([
           store.get("workers"),
           store.get("warnings"),
           store.get("blacklist"),
@@ -167,6 +172,8 @@ export default function App() {
           store.get("dailyVisits"),
           store.get("roomStatus"),
           store.get("categoryOrder"),
+          store.get("printBlacklist"),
+          store.get("bannerText"),
         ]);
         // 근로학생: Supabase를 단일 진실 원천(SSOT)으로 사용
         const serverWorkers = await supabaseStore.get("portal/workers");
@@ -184,6 +191,16 @@ export default function App() {
         }
         if (warn) setWarnings(warn);
         if (blk) setBlacklist(blk);
+        if (pblk) setPrintBlacklist(pblk);
+        // 배너: Supabase를 단일 진실 원천(SSOT)으로 사용
+        const serverBanner = await supabaseStore.get("portal/bannerText");
+        if (serverBanner && typeof serverBanner === "object" && serverBanner.title) {
+          setBannerText(serverBanner);
+          store.set("bannerText", serverBanner).catch(() => { });
+        } else if (savedBanner) {
+          setBannerText(savedBanner);
+          supabaseStore.set("portal/bannerText", savedBanner).catch(() => { });
+        }
         if (certs) setCertificates(certs);
         if (res) setReservations(res);
         if (eq) setEquipRentals(eq);
@@ -498,6 +515,14 @@ export default function App() {
     });
   }, [persist]);
 
+  const updatePrintBlacklist = useCallback((updater) => {
+    setPrintBlacklist(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      persist("printBlacklist", next);
+      return next;
+    });
+  }, [persist]);
+
   const updateCertificates = useCallback((updater) => {
     setCertificates(prev => {
       const next = typeof updater === "function" ? updater(prev) : updater;
@@ -519,6 +544,15 @@ export default function App() {
       const next = typeof updater === "function" ? updater(prev) : updater;
       persist("roomStatus", next);
       supabaseStore.set("portal/roomStatus", next).catch(() => { });
+      return next;
+    });
+  }, [persist]);
+
+  const updateBannerText = useCallback((updater) => {
+    setBannerText(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      persist("bannerText", next);
+      supabaseStore.set("portal/bannerText", next).catch(() => { });
       return next;
     });
   }, [persist]);
@@ -766,10 +800,14 @@ export default function App() {
     }
   }, []);
 
+  const overdueFlagsRef = useRef(overdueFlags);
+  useEffect(() => { overdueFlagsRef.current = overdueFlags; }, [overdueFlags]);
+
   useEffect(() => {
     if (!equipRentals?.length) return;
     const today = dateStr();
-    const newFlags = { ...overdueFlags };
+    const currentFlags = overdueFlagsRef.current;
+    const newFlags = { ...currentFlags };
     let changed = false;
     equipRentals.forEach(r => {
       if (r.status === "returned" || r.status === "cancelled") return;
@@ -797,7 +835,7 @@ export default function App() {
       }
     });
     if (changed) updateOverdueFlags(newFlags);
-  }, [equipRentals, overdueFlags, addNotification, addLog, sendEmailNotification, updateOverdueFlags]);
+  }, [equipRentals, addNotification, addLog, sendEmailNotification, updateOverdueFlags]);
 
   const syncReservationToSheet = useCallback(async (reservation) => {
     const url = sheetConfig?.reservationWebhookUrl?.trim();
@@ -931,6 +969,69 @@ export default function App() {
         return { ok: true, opaque: true };
       } catch (err2) {
         addLog(`[출력 시트 연동 실패] ${printRequest.studentName}(${printRequest.studentId})`, "print");
+        return { ok: false, error: err2?.message || err?.message || "unknown" };
+      }
+    }
+  }, [sheetConfig, addLog]);
+
+  // 물품대여 신청 → 구글 시트 연동
+  const syncEquipToSheet = useCallback(async (rental) => {
+    const url = sheetConfig?.equipWebhookUrl?.trim();
+    if (!url) return { skipped: true };
+    try {
+      const payload = {
+        event: "equip_rental",
+        sheetName: "Portal_물품대여 관리 대장",
+        key: EDITABLE.apiKey,
+        data: {
+          id: rental.id,
+          studentId: rental.studentId,
+          studentName: rental.studentName,
+          studentDept: rental.studentDept,
+          studentEmail: rental.studentEmail || "",
+          itemName: rental.items?.[0]?.name || "",
+          qty: rental.items?.[0]?.qty || 1,
+          returnDate: rental.returnDate,
+          note: rental.note || "",
+          status: rental.status,
+          createdAt: rental.createdAt,
+        },
+      };
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=UTF-8" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return { ok: true };
+    } catch (err) {
+      try {
+        await fetch(url, {
+          method: "POST",
+          mode: "no-cors",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({
+            event: "equip_rental",
+            sheetName: "Portal_물품대여 관리 대장",
+            key: EDITABLE.apiKey,
+            data: {
+              id: rental.id,
+              studentId: rental.studentId,
+              studentName: rental.studentName,
+              studentDept: rental.studentDept,
+              studentEmail: rental.studentEmail || "",
+              itemName: rental.items?.[0]?.name || "",
+              qty: rental.items?.[0]?.qty || 1,
+              returnDate: rental.returnDate,
+              note: rental.note || "",
+              status: rental.status,
+              createdAt: rental.createdAt,
+            },
+          }),
+        });
+        return { ok: true, opaque: true };
+      } catch (err2) {
+        addLog(`[물품대여 시트 연동 실패] ${rental.studentName}(${rental.studentId})`, "equipment");
         return { ok: false, error: err2?.message || err?.message || "unknown" };
       }
     }
@@ -1117,6 +1218,7 @@ export default function App() {
             inquiries={inquiries}
             updateInquiries={updateInquiries}
             savedCredentials={savedCredentials}
+            bannerText={bannerText}
             isMobile={isMobile}
             isDark={isDark} toggleDark={toggleDark}
           />
@@ -1138,8 +1240,10 @@ export default function App() {
             addLog={addLog} addNotification={addNotification}
             syncReservationToSheet={syncReservationToSheet}
             syncPrintToSheet={syncPrintToSheet}
+            syncEquipToSheet={syncEquipToSheet}
             sendEmailNotification={sendEmailNotification}
             warnings={warnings}
+            printBlacklist={printBlacklist}
             inquiries={inquiries}
             updateInquiries={updateInquiries}
             printRequests={printRequests}
@@ -1178,6 +1282,7 @@ export default function App() {
             sheetConfig={sheetConfig} updateSheetConfig={updateSheetConfig}
             warnings={warnings} updateWarnings={updateWarnings}
             blacklist={blacklist} updateBlacklist={updateBlacklist}
+            printBlacklist={printBlacklist} updatePrintBlacklist={updatePrintBlacklist}
             certificates={certificates}
             updateCertificates={updateCertificates}
             inquiries={inquiries} updateInquiries={updateInquiries}
@@ -1186,6 +1291,7 @@ export default function App() {
             categoryOrder={categoryOrder} setCategoryOrder={setCategoryOrder}
             roomStatus={roomStatus} updateRoomStatus={updateRoomStatus}
             formFiles={formFiles} updateFormFiles={updateFormFiles}
+            bannerText={bannerText} updateBannerText={updateBannerText}
             isMobile={isMobile}
             isDark={isDark} toggleDark={toggleDark}
           />

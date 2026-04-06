@@ -10,8 +10,8 @@ import AnimatedBorderButton from "../components/AnimatedBorderButton";
 
 const ADMIN_ACCOUNT = EDITABLE.adminAccount;
 
-function AdminPortal({ onLogout, workers, updateWorkers, logs, addLog, updateLogs, sheetConfig, updateSheetConfig, warnings, updateWarnings, blacklist, updateBlacklist, certificates, updateCertificates, inquiries, updateInquiries, sendEmailNotification, equipmentDB, setEquipmentDB, categoryOrder, setCategoryOrder, roomStatus, updateRoomStatus, formFiles, updateFormFiles, isMobile, isDark, toggleDark }) {
-  const [tab, setTabRaw] = useState("accounts");
+function AdminPortal({ onLogout, workers, updateWorkers, logs, addLog, updateLogs, sheetConfig, updateSheetConfig, warnings, updateWarnings, blacklist, updateBlacklist, printBlacklist, updatePrintBlacklist, certificates, updateCertificates, inquiries, updateInquiries, sendEmailNotification, equipmentDB, setEquipmentDB, categoryOrder, setCategoryOrder, roomStatus, updateRoomStatus, formFiles, updateFormFiles, bannerText, updateBannerText, isMobile, isDark, toggleDark }) {
+  const [tab, setTabRaw] = useState("roomToggle");
   const setTab = useCallback((newTab) => {
     setTabRaw(prev => {
       if (prev !== newTab) history.replaceState({ page: "admin", tab: newTab }, "");
@@ -21,7 +21,7 @@ function AdminPortal({ onLogout, workers, updateWorkers, logs, addLog, updateLog
   useEffect(() => {
     const onPopState = (e) => {
       const s = e.state;
-      if (s?.page === "admin") setTabRaw(s.tab || "accounts");
+      if (s?.page === "admin") setTabRaw(s.tab || "roomToggle");
     };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
@@ -34,8 +34,10 @@ function AdminPortal({ onLogout, workers, updateWorkers, logs, addLog, updateLog
   const [showPassFor, setShowPassFor] = useState({});
   const [sheetUrl, setSheetUrl] = useState(sheetConfig?.reservationWebhookUrl || "");
   const [printSheetUrl, setPrintSheetUrl] = useState(sheetConfig?.printWebhookUrl || "");
+  const [equipSheetUrl, setEquipSheetUrl] = useState(sheetConfig?.equipWebhookUrl || "");
   const [warnForm, setWarnForm] = useState({ studentId: "", name: "", reason: "" });
   const [blkForm, setBlkForm] = useState({ studentId: "", name: "", reason: "" });
+  const [pblkForm, setPblkForm] = useState({ studentId: "", name: "", reason: "" });
   const [certModal, setCertModal] = useState(null);
   const [certFileData, setCertFileData] = useState(null);
   const [certFileLoading, setCertFileLoading] = useState(false);
@@ -50,6 +52,10 @@ function AdminPortal({ onLogout, workers, updateWorkers, logs, addLog, updateLog
   const [formUploadDesc, setFormUploadDesc] = useState("");
   const [formUploading, setFormUploading] = useState(false);
   const [formUploadError, setFormUploadError] = useState("");
+  // 배너 관리
+  const [bannerTitle, setBannerTitle] = useState(bannerText?.title || "");
+  const [bannerSubtitle, setBannerSubtitle] = useState(bannerText?.subtitle || "");
+  const [bannerSaved, setBannerSaved] = useState(false);
 
   const openCertModal = async (cert) => {
     setCertModal(cert);
@@ -99,6 +105,7 @@ function AdminPortal({ onLogout, workers, updateWorkers, logs, addLog, updateLog
   useEffect(() => {
     setSheetUrl(sheetConfig?.reservationWebhookUrl || "");
     setPrintSheetUrl(sheetConfig?.printWebhookUrl || "");
+    setEquipSheetUrl(sheetConfig?.equipWebhookUrl || "");
   }, [sheetConfig]);
 
   const resetForm = () => {
@@ -152,7 +159,7 @@ function AdminPortal({ onLogout, workers, updateWorkers, logs, addLog, updateLog
   const togglePassVisibility = (id) => setShowPassFor(prev => ({ ...prev, [id]: !prev[id] }));
 
   const saveSheetConfig = () => {
-    updateSheetConfig(prev => ({ ...prev, reservationWebhookUrl: sheetUrl.trim(), printWebhookUrl: printSheetUrl.trim() }));
+    updateSheetConfig(prev => ({ ...prev, reservationWebhookUrl: sheetUrl.trim(), printWebhookUrl: printSheetUrl.trim(), equipWebhookUrl: equipSheetUrl.trim() }));
     addLog("[관리자] 구글시트 연동 URL 저장", "admin");
   };
 
@@ -208,6 +215,30 @@ function AdminPortal({ onLogout, workers, updateWorkers, logs, addLog, updateLog
       return next;
     });
     addLog(`[관리자] 블랙리스트 해제: ${studentId}`, "admin");
+  };
+
+  const addPrintBlacklist = () => {
+    if (!pblkForm.studentId.trim()) return;
+    updatePrintBlacklist(prev => ({
+      ...prev,
+      [pblkForm.studentId.trim()]: {
+        studentId: pblkForm.studentId.trim(),
+        name: pblkForm.name.trim() || "",
+        reason: pblkForm.reason.trim() || "",
+        updatedAt: ts(),
+      }
+    }));
+    addLog(`[관리자] 출력 블랙리스트 등록: ${pblkForm.studentId} ${pblkForm.name} ${pblkForm.reason ? `| ${pblkForm.reason}` : ""}`, "admin");
+    setPblkForm({ studentId: "", name: "", reason: "" });
+  };
+
+  const removePrintBlacklist = (studentId) => {
+    updatePrintBlacklist(prev => {
+      const next = { ...prev };
+      delete next[studentId];
+      return next;
+    });
+    addLog(`[관리자] 출력 블랙리스트 해제: ${studentId}`, "admin");
   };
 
   const approveCertificate = async (cert) => {
@@ -413,102 +444,19 @@ function AdminPortal({ onLogout, workers, updateWorkers, logs, addLog, updateLog
       <div style={{ paddingTop: 24 }}>
         <Tabs
           tabs={[
-            { id: "accounts", label: "근로학생 계정", icon: <Icons.users size={15} /> },
             { id: "roomToggle", label: "실기실 ON/OFF", icon: <Icons.power size={15} /> },
             { id: "discipline", label: "경고/블랙리스트", icon: <Icons.alert size={15} /> },
             { id: "certificates", label: "이수증 관리", icon: <Icons.file size={15} />, badge: certificateCount, badgeCircle: true },
             { id: "idPhoto", label: "학생증 사진 변경", icon: <Icons.upload size={15} />, badge: pendingIdPhotoCount, badgeCircle: true },
             { id: "equipment", label: "물품 관리", icon: <Icons.tool size={15} /> },
             { id: "forms", label: "양식함 관리", icon: <Icons.clipboard size={15} /> },
+            { id: "banner", label: "배너 관리", icon: <Icons.edit size={15} /> },
             { id: "adminLog", label: "관리 이력", icon: <Icons.log size={15} /> },
             { id: "integration", label: "연동 설정", icon: <Icons.refresh size={15} /> },
           ]}
           active={tab} onChange={setTab} isMobile={isMobile} wrap
         />
       </div>
-
-      {tab === "accounts" && (
-        <div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-            <div style={{ fontSize: 13, color: theme.textMuted }}>등록된 계정: <strong style={{ color: theme.text }}>{workers.length}명</strong></div>
-            <Button size="sm" onClick={() => { resetForm(); setShowForm(true); }}><Icons.plus size={14} /> 계정 추가</Button>
-          </div>
-
-          {/* Form */}
-          {showForm && (
-            <Card style={{ marginBottom: 20, borderColor: theme.accentBorder }}>
-              <SectionTitle icon={editingId ? <Icons.edit size={16} color={theme.accent} /> : <Icons.plus size={16} color={theme.accent} />}>
-                {editingId ? "계정 수정" : "새 근로학생 계정"}
-              </SectionTitle>
-              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14, marginBottom: 14 }}>
-                <Input label="이름" placeholder="예: 홍길동" value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} />
-                <Input label="근무시간" placeholder="예: 오전 (09–13시)" value={formData.shift} onChange={e => setFormData(p => ({ ...p, shift: e.target.value }))} />
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14, marginBottom: 14 }}>
-                <Input label="로그인 아이디" placeholder="예: worker4 (3자 이상)" value={formData.username} onChange={e => setFormData(p => ({ ...p, username: e.target.value }))} />
-                <Input label="비밀번호" placeholder="4자 이상" value={formData.password} onChange={e => setFormData(p => ({ ...p, password: e.target.value }))} />
-              </div>
-              {formError && (
-                <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderRadius: theme.radiusSm, background: theme.redBg, border: `1px solid ${theme.redBorder}`, color: theme.red, fontSize: 13, marginBottom: 14 }}>
-                  <Icons.alert size={16} /> {formError}
-                </div>
-              )}
-              <div style={{ display: "flex", gap: 8 }}>
-                <Button onClick={handleSave}>{editingId ? "수정 저장" : "계정 생성"}</Button>
-                <Button variant="ghost" onClick={resetForm}>취소</Button>
-              </div>
-            </Card>
-          )}
-
-          {/* Worker List */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {workers.map(worker => (
-              <Card key={worker.id} style={{ padding: 16 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                      <div style={{ width: 38, height: 38, borderRadius: 10, background: theme.accentBg, border: `1px solid ${theme.accentBorder}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        <Icons.user size={18} color={theme.accent} />
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 15, fontWeight: 700, color: theme.text }}>{worker.name}</div>
-                        <div style={{ fontSize: 12, color: theme.textMuted, marginTop: 1 }}>{worker.shift}</div>
-                      </div>
-                    </div>
-                    <div style={{ display: "flex", gap: 12, marginTop: 10, paddingLeft: 48 }}>
-                      <div style={{ fontSize: 12 }}>
-                        <span style={{ color: theme.textDim }}>아이디: </span>
-                        <code style={{ color: theme.accent, background: theme.accentBg, padding: "1px 6px", borderRadius: 3, fontSize: 12 }}>{worker.username}</code>
-                      </div>
-                      <div style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 4 }}>
-                        <span style={{ color: theme.textDim }}>비밀번호: </span>
-                        <code style={{ color: theme.text, background: theme.surface, padding: "1px 6px", borderRadius: 3, fontSize: 12, fontFamily: theme.fontMono }}>
-                          {showPassFor[worker.id] ? worker.password : "••••"}
-                        </code>
-                        <button onClick={() => togglePassVisibility(worker.id)} style={{ background: "none", border: "none", cursor: "pointer", color: theme.textDim, padding: 2 }}>
-                          {showPassFor[worker.id] ? <Icons.eyeOff size={13} /> : <Icons.eye size={13} />}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <Button variant="ghost" size="sm" onClick={() => handleEdit(worker)}><Icons.edit size={14} /></Button>
-                    {confirmDelete === worker.id ? (
-                      <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                        <Button variant="danger" size="sm" onClick={() => handleDelete(worker.id)}>삭제</Button>
-                        <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(null)}>취소</Button>
-                      </div>
-                    ) : (
-                      <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(worker.id)}><Icons.trash size={14} /></Button>
-                    )}
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-          {workers.length === 0 && <Empty icon={<Icons.users size={32} />} text="등록된 근로학생 계정이 없습니다" />}
-        </div>
-      )}
 
       {tab === "roomToggle" && (
         <div>
@@ -616,6 +564,39 @@ function AdminPortal({ onLogout, workers, updateWorkers, logs, addLog, updateLog
                       <div style={{ fontSize: 12, color: theme.textDim, marginTop: 4 }}>{b.reason || "사유 없음"}</div>
                     </div>
                     <Button size="sm" variant="ghost" onClick={() => removeBlacklist(b.studentId)}>해제</Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </Card>
+
+          <div style={{ marginTop: 32 }} />
+          <SectionTitle icon={<Icons.file size={16} color={theme.orange} />}>출력실 블랙리스트</SectionTitle>
+          <div style={{ fontSize: 12, color: theme.textMuted, marginBottom: 12 }}>
+            출력실 블랙리스트에 등록된 학생은 로그인은 가능하지만 출력 접수 탭 이용이 제한됩니다.
+          </div>
+          <Card style={{ marginBottom: 16 }}>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12, marginBottom: 12 }}>
+              <Input label="학번" value={pblkForm.studentId} onChange={e => setPblkForm(p => ({ ...p, studentId: e.target.value }))} />
+              <Input label="이름" value={pblkForm.name} onChange={e => setPblkForm(p => ({ ...p, name: e.target.value }))} />
+            </div>
+            <Input label="사유 (선택)" value={pblkForm.reason} onChange={e => setPblkForm(p => ({ ...p, reason: e.target.value }))} />
+            <div style={{ marginTop: 12 }}>
+              <Button size="sm" variant="danger" onClick={addPrintBlacklist}>출력 블랙리스트 등록</Button>
+            </div>
+          </Card>
+          <Card style={{ padding: 0, overflow: "hidden" }}>
+            {Object.keys(printBlacklist || {}).length === 0 ? (
+              <Empty icon={<Icons.file size={28} />} text="출력 블랙리스트가 없습니다" />
+            ) : (
+              Object.values(printBlacklist).map((b) => (
+                <div key={b.studentId} style={{ padding: "12px 18px", borderBottom: `1px solid ${theme.border}` }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>{b.name || "(이름 없음)"} <span style={{ color: theme.textMuted }}>({b.studentId})</span></div>
+                      <div style={{ fontSize: 12, color: theme.textDim, marginTop: 4 }}>{b.reason || "사유 없음"}</div>
+                    </div>
+                    <Button size="sm" variant="ghost" onClick={() => removePrintBlacklist(b.studentId)}>해제</Button>
                   </div>
                 </div>
               ))
@@ -802,6 +783,59 @@ function AdminPortal({ onLogout, workers, updateWorkers, logs, addLog, updateLog
         </div>
       )}
 
+
+      {tab === "banner" && (
+        <div>
+          <SectionTitle icon={<Icons.edit size={16} color={theme.accent} />}>홈페이지 환영 배너 수정</SectionTitle>
+          <div style={{ fontSize: 12, color: theme.textMuted, marginBottom: 16 }}>
+            로그인 화면에 표시되는 환영 배너의 제목과 부제목을 수정할 수 있습니다.
+          </div>
+          <Card style={{ padding: 20 }}>
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: theme.text, marginBottom: 6 }}>배너 제목</div>
+              <Input
+                value={bannerTitle}
+                onChange={e => { setBannerTitle(e.target.value); setBannerSaved(false); }}
+                placeholder="예: 신입생분들 입학을 진심으로 환영합니다!"
+                style={{ width: "100%", boxSizing: "border-box" }}
+              />
+            </div>
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: theme.text, marginBottom: 6 }}>배너 부제목</div>
+              <Input
+                value={bannerSubtitle}
+                onChange={e => { setBannerSubtitle(e.target.value); setBannerSaved(false); }}
+                placeholder="예: 함께 떠나봅시다! 🎉"
+                style={{ width: "100%", boxSizing: "border-box" }}
+              />
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <Button onClick={() => {
+                updateBannerText({ title: bannerTitle, subtitle: bannerSubtitle });
+                setBannerSaved(true);
+                addLog("배너 텍스트 수정", "admin");
+              }}>저장</Button>
+              <Button variant="ghost" onClick={() => {
+                setBannerTitle(bannerText?.title || "");
+                setBannerSubtitle(bannerText?.subtitle || "");
+                setBannerSaved(false);
+              }}>초기화</Button>
+              {bannerSaved && <span style={{ fontSize: 12, color: theme.green, fontWeight: 600 }}>저장되었습니다</span>}
+            </div>
+          </Card>
+          <Card style={{ marginTop: 16, padding: 20 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: theme.text, marginBottom: 12 }}>미리보기</div>
+            <div style={{ textAlign: "center", padding: "16px 0" }}>
+              <div style={{ fontSize: isMobile ? 22 : 28, fontWeight: 800, letterSpacing: "-1px", lineHeight: 1.2, background: "linear-gradient(135deg, #FF6B00 0%, #FF9A3C 60%, #FFD580 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>
+                {bannerTitle || "제목을 입력하세요"}
+              </div>
+              <div style={{ fontSize: 13, color: theme.textMuted, marginTop: 8, letterSpacing: "0.3px" }}>
+                {bannerSubtitle || "부제목을 입력하세요"}
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
 
       {tab === "adminLog" && (
         <div>
@@ -1096,14 +1130,22 @@ function AdminPortal({ onLogout, workers, updateWorkers, logs, addLog, updateLog
                 onChange={e => setPrintSheetUrl(e.target.value)}
               />
             </div>
+            <div style={{ marginTop: 12 }}>
+              <Input
+                label="물품대여 관리 GAS URL"
+                placeholder="https://script.google.com/macros/s/XXX/exec"
+                value={equipSheetUrl}
+                onChange={e => setEquipSheetUrl(e.target.value)}
+              />
+            </div>
             <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
               <Button size="sm" onClick={saveSheetConfig}>저장</Button>
-              <Button size="sm" variant="ghost" onClick={() => { setSheetUrl(""); setPrintSheetUrl(""); }}>초기화</Button>
+              <Button size="sm" variant="ghost" onClick={() => { setSheetUrl(""); setPrintSheetUrl(""); setEquipSheetUrl(""); }}>초기화</Button>
             </div>
           </Card>
           <Card style={{ background: theme.blueBg, borderColor: theme.blueBorder, padding: 14 }}>
             <div style={{ fontSize: 12, color: theme.blue, lineHeight: 1.6 }}>
-              시트로 전송되는 데이터: 학생 정보, 실기실, 날짜/시간, 목적, 인원, 생성시간.
+              시트로 전송되는 데이터: 학생 정보, 실기실, 날짜/시간, 목적, 인원, 생성시간. 물품대여: 학생 정보, 물품명, 수량, 반납일, 비고.
               CORS 허용과 POST 수신이 가능한 웹앱으로 배포되어야 합니다.
             </div>
           </Card>

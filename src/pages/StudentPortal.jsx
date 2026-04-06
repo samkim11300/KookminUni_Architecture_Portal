@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import theme from "../constants/theme";
 import Icons from "../components/Icons";
-import { Badge, Card, Button, Tabs } from "../components/ui";
+import { Badge, Card, Button, Tabs, AlertPopup } from "../components/ui";
 import RoomReservation from "../features/RoomReservation";
 import EquipmentRental from "../features/EquipmentRental";
 import PrintRequest from "../features/PrintRequest";
@@ -17,16 +17,21 @@ const PRINT_TYPE_LABELS = {
   COLOR: "컬러",
 };
 
-function StudentPortal({ user, onLogout, reservations, updateReservations, equipRentals, updateEquipRentals, equipmentDB, setEquipmentDB, categoryOrder, addLog, addNotification, syncReservationToSheet, syncPrintToSheet, sendEmailNotification, warnings, inquiries, updateInquiries, printRequests, updatePrintRequests, roomStatus, isMobile, isDark, toggleDark }) {
+function StudentPortal({ user, onLogout, reservations, updateReservations, equipRentals, updateEquipRentals, equipmentDB, setEquipmentDB, categoryOrder, addLog, addNotification, syncReservationToSheet, syncPrintToSheet, syncEquipToSheet, sendEmailNotification, warnings, printBlacklist, inquiries, updateInquiries, printRequests, updatePrintRequests, roomStatus, isMobile, isDark, toggleDark }) {
   const [tab, setTabRaw] = useState("dashboard");
   const [dashboardDetail, setDashboardDetail] = useState(null);
   const [detailSubmitting, setDetailSubmitting] = useState(false);
+  const [showPrintBlocked, setShowPrintBlocked] = useState(false);
   const setTab = useCallback((newTab) => {
+    if (newTab === "print" && printBlacklist?.[user?.id]) {
+      setShowPrintBlocked(true);
+      return;
+    }
     setTabRaw(prev => {
       if (prev !== newTab) history.replaceState({ page: "student", tab: newTab }, "");
       return newTab;
     });
-  }, []);
+  }, [printBlacklist, user?.id]);
   useEffect(() => {
     const onPopState = (e) => {
       const s = e.state;
@@ -418,7 +423,7 @@ function StudentPortal({ user, onLogout, reservations, updateReservations, equip
             />
           )}
           {tab === "equipment" && (
-            <EquipmentRental user={user} equipRentals={equipRentals} updateEquipRentals={updateEquipRentals} equipmentDB={equipmentDB} setEquipmentDB={setEquipmentDB} categoryOrder={categoryOrder} addLog={addLog} addNotification={addNotification} sendEmailNotification={sendEmailNotification} isMobile={isMobile} />
+            <EquipmentRental user={user} equipRentals={equipRentals} updateEquipRentals={updateEquipRentals} equipmentDB={equipmentDB} setEquipmentDB={setEquipmentDB} categoryOrder={categoryOrder} addLog={addLog} addNotification={addNotification} syncEquipToSheet={syncEquipToSheet} sendEmailNotification={sendEmailNotification} isMobile={isMobile} />
           )}
           {tab === "print" && (
             <PrintRequest user={user} printRequests={myPrintRequests} updatePrintRequests={updatePrintRequests} addLog={addLog} addNotification={addNotification} syncPrintToSheet={syncPrintToSheet} sendEmailNotification={sendEmailNotification} isMobile={isMobile} />
@@ -500,6 +505,16 @@ function StudentPortal({ user, onLogout, reservations, updateReservations, equip
         </div>
       )}
     </div>
+
+    <AlertPopup
+      isVisible={showPrintBlocked}
+      icon="🚫"
+      title="출력 제한 아이디입니다"
+      description="현재 출력 접수가 제한된 계정입니다. 문의사항은 교학팀에 연락해주세요."
+      buttonText="확인"
+      onClose={() => setShowPrintBlocked(false)}
+      color={theme.red}
+    />
     </>
   );
 }

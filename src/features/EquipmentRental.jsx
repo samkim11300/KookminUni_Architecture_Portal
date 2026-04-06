@@ -26,7 +26,7 @@ const nextWeekday = (dateStr) => {
   return d.toISOString().split("T")[0];
 };
 
-function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, setEquipmentDB, categoryOrder, addLog, addNotification, isMobile }) {
+function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, setEquipmentDB, categoryOrder, addLog, addNotification, syncEquipToSheet, isMobile }) {
   const [selected, setSelected] = useState(null);
   const [returnDate, setReturnDate] = useState(nextWeekday(addDays(3)));
   const [note, setNote] = useState("");
@@ -36,6 +36,7 @@ function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, 
   const [showWeekendPopup, setShowWeekendPopup] = useState(false);
   const [filterCat, setFilterCat] = useState("전체");
   const [standQty, setStandQty] = useState(1);
+  const [phone, setPhone] = useState("");
 
   const allCats = [...new Set(equipmentDB.map(e => e.category))];
   const orderedCats = categoryOrder && categoryOrder.length > 0
@@ -51,6 +52,7 @@ function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, 
 
   const handleSubmit = () => {
     if (!selected) return;
+    if (!phone.trim()) return;
     if (isWeekend(returnDate)) { setShowWeekendPopup(true); return; }
     if (isPast(returnDate)) return;
     setSubmitting(true);
@@ -61,17 +63,19 @@ function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, 
       const rental = {
         id: uid(), type: "equipment", studentId: user.id, studentName: user.name, studentDept: user.dept, studentEmail: user.email || "",
         items: [{ id: item.id, name: item.name, icon: item.icon, qty }],
-        returnDate, note: note || "", status: "pending_pickup", createdAt: ts(),
+        returnDate, note: note || "", phone: phone.trim(), status: "pending_pickup", createdAt: ts(),
       };
       updateEquipRentals(prev => [rental, ...prev]);
       setEquipmentDB(prev => prev.map(e => e.id === item.id ? { ...e, available: Math.max(0, e.available - qty) } : e));
       addLog(`[기구대여] ${user.name}(${user.id}) → ${item.name} x${qty} | 반납: ${returnDate}`, "equipment", { studentId: user.id });
       addNotification(`🔧 기구대여 요청: ${user.name} → ${item.name} x${qty}`, "equipment", true);
+      syncEquipToSheet?.(rental);
       setSuccess(rental);
       setShowPopup(true);
       setSubmitting(false);
       setSelected(null);
       setNote("");
+      setPhone("");
     }, 800);
   };
 
@@ -216,6 +220,21 @@ function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, 
                         {isPast(returnDate) ? "⚠️ 과거 날짜는 불가" : isWeekend(returnDate) ? "⚠️ 주말은 반납 불가" : "주말(토·일) 반납 불가"}
                       </div>
                     </div>
+                    <div style={{ minWidth: 180 }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        <Input
+                          label="연락처 (필수)"
+                          type="tel"
+                          placeholder="01012345678"
+                          value={phone}
+                          onChange={e => setPhone(e.target.value)}
+                          style={{ borderColor: !phone.trim() ? theme.red : undefined }}
+                        />
+                        {!phone.trim() && (
+                          <div style={{ fontSize: 11, color: theme.red, fontWeight: 600 }}>⚠️ 연락처를 입력해주세요</div>
+                        )}
+                      </div>
+                    </div>
                     <div style={{ flex: 1, minWidth: 200 }}>
                       <Input label="비고 (선택)" placeholder="예: 수업용, 팀프로젝트 등" value={note} onChange={e => setNote(e.target.value)} />
                     </div>
@@ -231,8 +250,8 @@ function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, 
                   </div>
                 </Card>
 
-                <Button size="lg" onClick={handleSubmit} disabled={submitting || isWeekend(returnDate) || isPast(returnDate)} style={{ width: "100%", justifyContent: "center", marginBottom: 40 }}>
-                  {submitting ? "신청 중..." : isPast(returnDate) ? "과거 날짜는 반납일로 설정 불가" : isWeekend(returnDate) ? "주말은 반납일로 설정 불가" : `${eq.name} 대여 신청`}
+                <Button size="lg" onClick={handleSubmit} disabled={submitting || isWeekend(returnDate) || isPast(returnDate) || !phone.trim()} style={{ width: "100%", justifyContent: "center", marginBottom: 40 }}>
+                  {submitting ? "신청 중..." : isPast(returnDate) ? "과거 날짜는 반납일로 설정 불가" : isWeekend(returnDate) ? "주말은 반납일로 설정 불가" : !phone.trim() ? "연락처를 입력해주세요" : `${eq.name} 대여 신청`}
                 </Button>
               </div>
             );
@@ -289,6 +308,19 @@ function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, 
                   {isPast(returnDate) ? "⚠️ 과거 날짜는 불가" : isWeekend(returnDate) ? "⚠️ 주말은 반납 불가" : "주말(토·일) 반납 불가"}
                 </div>
               </div>
+              <div style={{ marginBottom: 16 }}>
+                <Input
+                  label="연락처 (필수)"
+                  type="tel"
+                  placeholder="01012345678"
+                  value={phone}
+                  onChange={e => setPhone(e.target.value)}
+                  style={{ borderColor: !phone.trim() ? theme.red : undefined }}
+                />
+                {!phone.trim() && (
+                  <div style={{ fontSize: 11, marginTop: 4, color: theme.red, fontWeight: 600 }}>⚠️ 연락처를 입력해주세요</div>
+                )}
+              </div>
               <div style={{ marginBottom: 20 }}>
                 <Input label="비고 (선택)" placeholder="예: 수업용, 팀프로젝트 등" value={note} onChange={e => setNote(e.target.value)} />
               </div>
@@ -299,8 +331,8 @@ function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, 
                   <Badge color="blue">반납: {returnDate}</Badge>
                 </div>
               </Card>
-              <Button size="lg" onClick={handleSubmit} disabled={submitting || isWeekend(returnDate) || isPast(returnDate)} style={{ width: "100%", justifyContent: "center" }}>
-                {submitting ? "신청 중..." : isPast(returnDate) ? "과거 날짜는 반납일로 설정 불가" : isWeekend(returnDate) ? "주말은 반납일로 설정 불가" : `${eq.name} 대여 신청`}
+              <Button size="lg" onClick={handleSubmit} disabled={submitting || isWeekend(returnDate) || isPast(returnDate) || !phone.trim()} style={{ width: "100%", justifyContent: "center" }}>
+                {submitting ? "신청 중..." : isPast(returnDate) ? "과거 날짜는 반납일로 설정 불가" : isWeekend(returnDate) ? "주말은 반납일로 설정 불가" : !phone.trim() ? "연락처를 입력해주세요" : `${eq.name} 대여 신청`}
               </Button>
             </div>
           </div>
