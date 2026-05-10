@@ -3,7 +3,7 @@ import supabaseStore, { formStorage } from "./supabase";
 import Icons from "./components/Icons";
 import { EDITABLE, ROOMS, DEFAULT_EQUIPMENT_DB, DEFAULT_WORKERS } from "./constants/data";
 import theme, { darkColors, lightColors } from "./constants/theme";
-import { uid, ts, dateStr, ACTIVE_PORTAL_SESSION_KEY, emailTemplate } from "./utils/helpers";
+import { uid, ts, dateStr, ACTIVE_PORTAL_SESSION_KEY, emailTemplate, sha256 } from "./utils/helpers";
 import store from "./utils/storage";
 import PortalLoadingScreen from "./components/PortalLoadingScreen";
 import AnimatedBorderButton from "./components/AnimatedBorderButton";
@@ -176,14 +176,28 @@ export default function App() {
           store.get("bannerText"),
         ]);
         // 근로학생: Supabase를 단일 진실 원천(SSOT)으로 사용
+        // password → passwordHash 마이그레이션 헬퍼
+        const migrateWorkers = async (list) => {
+          const migrated = await Promise.all(list.map(async (w) => {
+            if (w.password && !w.passwordHash) {
+              const { password, ...rest } = w;
+              return { ...rest, passwordHash: await sha256(password) };
+            }
+            return w;
+          }));
+          return migrated;
+        };
         const serverWorkers = await supabaseStore.get("portal/workers");
         if (Array.isArray(serverWorkers) && serverWorkers.length > 0) {
-          setWorkers(serverWorkers);
-          store.set("workers", serverWorkers).catch(() => { });
+          const migrated = await migrateWorkers(serverWorkers);
+          setWorkers(migrated);
+          store.set("workers", migrated).catch(() => { });
+          if (migrated !== serverWorkers) supabaseStore.set("portal/workers", migrated).catch(() => { });
         } else if (Array.isArray(wk) && wk.length > 0) {
-          setWorkers(wk);
-          // 로컬에만 있던 데이터를 Supabase에 동기화
-          supabaseStore.set("portal/workers", wk).catch(() => { });
+          const migrated = await migrateWorkers(wk);
+          setWorkers(migrated);
+          store.set("workers", migrated).catch(() => { });
+          supabaseStore.set("portal/workers", migrated).catch(() => { });
         } else {
           setWorkers(DEFAULT_WORKERS);
           store.set("workers", DEFAULT_WORKERS).catch(() => { });
