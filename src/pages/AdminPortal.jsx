@@ -1,16 +1,15 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { EDITABLE, ROOMS } from "../constants/data";
 import theme from "../constants/theme";
-import { uid, ts, emailTemplate } from "../utils/helpers";
+import { uid, ts, emailTemplate, sha256 } from "../utils/helpers";
 import store from "../utils/storage";
 import { certificateStorage, formStorage } from "../supabase";
 import Icons from "../components/Icons";
 import { Badge, Card, Button, Input, SectionTitle, Empty, Tabs } from "../components/ui";
 import AnimatedBorderButton from "../components/AnimatedBorderButton";
 
-const ADMIN_ACCOUNT = EDITABLE.adminAccount;
 
-function AdminPortal({ onLogout, workers, updateWorkers, logs, addLog, updateLogs, sheetConfig, updateSheetConfig, warnings, updateWarnings, blacklist, updateBlacklist, printBlacklist, updatePrintBlacklist, certificates, updateCertificates, inquiries, updateInquiries, sendEmailNotification, equipmentDB, setEquipmentDB, categoryOrder, setCategoryOrder, roomStatus, updateRoomStatus, formFiles, updateFormFiles, bannerText, updateBannerText, isMobile, isDark, toggleDark }) {
+function AdminPortal({ onLogout, logs, addLog, updateLogs, sheetConfig, updateSheetConfig, warnings, updateWarnings, blacklist, updateBlacklist, printBlacklist, updatePrintBlacklist, certificates, updateCertificates, inquiries, updateInquiries, sendEmailNotification, equipmentDB, setEquipmentDB, categoryOrder, setCategoryOrder, roomStatus, updateRoomStatus, formFiles, updateFormFiles, bannerText, updateBannerText, isMobile, isDark, toggleDark }) {
   const [tab, setTabRaw] = useState("roomToggle");
   const setTab = useCallback((newTab) => {
     setTabRaw(prev => {
@@ -26,12 +25,6 @@ function AdminPortal({ onLogout, workers, updateWorkers, logs, addLog, updateLog
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [formData, setFormData] = useState({ name: "", username: "", password: "", shift: "" });
-  const [formError, setFormError] = useState("");
-  const [confirmDelete, setConfirmDelete] = useState(null);
-  const [showPassFor, setShowPassFor] = useState({});
   const [sheetUrl, setSheetUrl] = useState(sheetConfig?.reservationWebhookUrl || "");
   const [printSheetUrl, setPrintSheetUrl] = useState(sheetConfig?.printWebhookUrl || "");
   const [equipSheetUrl, setEquipSheetUrl] = useState(sheetConfig?.equipWebhookUrl || "");
@@ -108,55 +101,6 @@ function AdminPortal({ onLogout, workers, updateWorkers, logs, addLog, updateLog
     setEquipSheetUrl(sheetConfig?.equipWebhookUrl || "");
   }, [sheetConfig]);
 
-  const resetForm = () => {
-    setFormData({ name: "", username: "", password: "", shift: "" });
-    setFormError("");
-    setEditingId(null);
-    setShowForm(false);
-  };
-
-  const validateForm = () => {
-    if (!formData.name.trim()) return "이름을 입력해주세요.";
-    if (!formData.username.trim()) return "아이디를 입력해주세요.";
-    if (formData.username.trim().length < 3) return "아이디는 3자 이상이어야 합니다.";
-    if (!formData.password.trim()) return "비밀번호를 입력해주세요.";
-    if (formData.password.trim().length < 4) return "비밀번호는 4자 이상이어야 합니다.";
-    if (!formData.shift.trim()) return "근무시간을 입력해주세요.";
-    const dup = workers.find(w => w.username === formData.username.trim() && w.id !== editingId);
-    if (dup) return "이미 사용중인 아이디입니다.";
-    if (formData.username.trim() === ADMIN_ACCOUNT.username) return "사용할 수 없는 아이디입니다.";
-    return null;
-  };
-
-  const handleSave = () => {
-    const err = validateForm();
-    if (err) { setFormError(err); return; }
-    if (editingId) {
-      updateWorkers(prev => prev.map(w => w.id === editingId ? { ...w, name: formData.name.trim(), username: formData.username.trim(), password: formData.password.trim(), shift: formData.shift.trim() } : w));
-      addLog(`[관리자] 근로학생 계정 수정: ${formData.name} (${formData.username})`, "admin");
-    } else {
-      const newWorker = { id: `W${Date.now()}`, name: formData.name.trim(), username: formData.username.trim(), password: formData.password.trim(), shift: formData.shift.trim() };
-      updateWorkers(prev => [...prev, newWorker]);
-      addLog(`[관리자] 근로학생 계정 생성: ${formData.name} (${formData.username})`, "admin");
-    }
-    resetForm();
-  };
-
-  const handleEdit = (worker) => {
-    setFormData({ name: worker.name, username: worker.username, password: worker.password, shift: worker.shift });
-    setEditingId(worker.id);
-    setShowForm(true);
-    setFormError("");
-  };
-
-  const handleDelete = (workerId) => {
-    const worker = workers.find(w => w.id === workerId);
-    updateWorkers(prev => prev.filter(w => w.id !== workerId));
-    addLog(`[관리자] 근로학생 계정 삭제: ${worker?.name} (${worker?.username})`, "admin");
-    setConfirmDelete(null);
-  };
-
-  const togglePassVisibility = (id) => setShowPassFor(prev => ({ ...prev, [id]: !prev[id] }));
 
   const saveSheetConfig = () => {
     updateSheetConfig(prev => ({ ...prev, reservationWebhookUrl: sheetUrl.trim(), printWebhookUrl: printSheetUrl.trim(), equipWebhookUrl: equipSheetUrl.trim() }));

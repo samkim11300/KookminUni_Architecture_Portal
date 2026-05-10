@@ -13,7 +13,13 @@
       "Bash(node -e \"\nconst { Client } = require\\(''pg''\\);\nconst client = new Client\\({\n  host: ''aws-0-ap-northeast-2.pooler.supabase.com'',\n  port: 5432,\n  database: ''postgres'',\n  user: ''postgres.etdpijfbnepaeojkqndg'',\n  password: ''choasd1130!'',\n  ssl: { rejectUnauthorized: false }\n}\\);\nasync function run\\(\\) {\n  await client.connect\\(\\);\n  console.log\\(''Connected!''\\);\n  await client.end\\(\\);\n}\nrun\\(\\).catch\\(e => { console.error\\(''Error:'', e.message\\); process.exit\\(1\\); }\\);\n\")",
       "Bash(curl.exe:*)",
       "Bash(findstr:*)",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(cmd.exe /c \"where node\")",
+      "Bash(\"/c/Users/samki/AppData/Roaming/nvm/v22.11.0/node.exe\" --version)",
+      "Bash(\"/c/Users/samki/.nvm/versions/node/v22.11.0/bin/node\" --version)",
+      "Read(//c/Users/samki/AppData/Roaming/**)",
+      "Read(//c/Users/samki/scoop/apps/**)",
+      "Bash(powershell.exe -Command \"Get-Command node -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source\")"
     ]
   }
 }

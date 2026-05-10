@@ -17,6 +17,18 @@ export const formatDate = (d) => { if (!d) return ""; const [y, m, dd] = d.split
 export const ACTIVE_PORTAL_SESSION_KEY = "kmu_active_portal_session";
 
 /**
+ * SHA-256 해시 함수 (Web Crypto API)
+ * @param {string} message - 해시할 문자열
+ * @returns {Promise<string>} hex 문자열
+ */
+export async function sha256(message) {
+  const msgBuffer = new TextEncoder().encode(message);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", msgBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+/**
  * 이메일 본문 양식 (B — 깔끔 간결체)
  * @param {string} name - 수신자 이름
  * @param {string} body - 본문 내용 (여러 줄 문자열)

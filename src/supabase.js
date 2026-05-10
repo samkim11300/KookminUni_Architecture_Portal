@@ -11,10 +11,12 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
 const supabaseServiceKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || ''
 
 // Create Supabase client (anon — for DB operations)
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export const supabase = supabaseUrl
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : null
 
 // Admin client for Storage operations (bypasses RLS)
-const supabaseAdmin = supabaseServiceKey
+const supabaseAdmin = supabase && supabaseServiceKey
   ? createClient(supabaseUrl, supabaseServiceKey, { auth: { persistSession: false } })
   : supabase
 
@@ -26,6 +28,7 @@ export const supabaseStore = {
    * @returns {Promise<any|null>} The value associated with the key, or null if not found
    */
   async get(key) {
+    if (!supabase) return null;
     try {
       const { data, error } = await supabase
         .from('portal_data')
@@ -52,6 +55,7 @@ export const supabaseStore = {
    * @returns {Promise<boolean>} True if successful, false otherwise
    */
   async set(key, value) {
+    if (!supabase) return false;
     try {
       // If value is null or undefined, delete the row
       if (value === null || value === undefined) {
@@ -84,6 +88,7 @@ export const supabaseStore = {
    * @returns {Promise<boolean>} True if successful, false otherwise
    */
   async update(key, value) {
+    if (!supabase) return false;
     try {
       // Get existing data
       const existing = await this.get(key)
@@ -108,6 +113,7 @@ export const supabaseStore = {
    * @returns {Promise<string|null>} The generated ID, or null if failed
    */
   async push(key, value) {
+    if (!supabase) return null;
     try {
       // Generate a unique ID (timestamp + random string)
       const timestamp = Date.now()
@@ -137,6 +143,7 @@ export const supabaseStore = {
    * @returns {Promise<boolean>} True if successful, false otherwise
    */
   async remove(key) {
+    if (!supabase) return false;
     try {
       const { error } = await supabase
         .from('portal_data')
@@ -158,6 +165,7 @@ export const supabaseStore = {
    * @returns {Function} Unsubscribe function
    */
   subscribe(key, callback) {
+    if (!supabase) return () => {};
     // Create a unique channel name for this subscription
     const channelName = `portal_data:${key}`
 
@@ -195,6 +203,7 @@ export const supabaseStore = {
    * @returns {Promise<Array>} Array of objects with 'name' property (key names)
    */
   async listByPrefix(prefix) {
+    if (!supabase) return [];
     try {
       // Use LIKE query with wildcard
       const { data, error } = await supabase
@@ -218,6 +227,7 @@ const CERT_BUCKET = 'certificates'
 
 export const certificateStorage = {
   async upload(studentId, file) {
+    if (!supabaseAdmin) return { path: null, error: 'Supabase not configured' };
     try {
       const timestamp = Date.now()
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
@@ -240,6 +250,7 @@ export const certificateStorage = {
   },
 
   async getSignedUrl(filePath, expiresIn = 3600) {
+    if (!supabaseAdmin) return null;
     try {
       const { data, error } = await supabaseAdmin.storage
         .from(CERT_BUCKET)
@@ -254,6 +265,7 @@ export const certificateStorage = {
   },
 
   async download(filePath) {
+    if (!supabaseAdmin) return null;
     try {
       const { data, error } = await supabaseAdmin.storage
         .from(CERT_BUCKET)
@@ -268,6 +280,7 @@ export const certificateStorage = {
   },
 
   async remove(filePath) {
+    if (!supabaseAdmin) return false;
     try {
       const { error } = await supabaseAdmin.storage
         .from(CERT_BUCKET)
@@ -287,6 +300,7 @@ const FORMS_BUCKET = 'forms'
 
 export const formStorage = {
   async upload(file, customName) {
+    if (!supabaseAdmin) return { path: null, error: 'Supabase not configured' };
     try {
       const timestamp = Date.now()
       const displayName = customName || file.name
@@ -310,6 +324,7 @@ export const formStorage = {
   },
 
   async getSignedUrl(filePath, expiresIn = 3600) {
+    if (!supabaseAdmin) return null;
     try {
       const { data, error } = await supabaseAdmin.storage
         .from(FORMS_BUCKET)
@@ -324,6 +339,7 @@ export const formStorage = {
   },
 
   async remove(filePath) {
+    if (!supabaseAdmin) return false;
     try {
       const { error } = await supabaseAdmin.storage
         .from(FORMS_BUCKET)

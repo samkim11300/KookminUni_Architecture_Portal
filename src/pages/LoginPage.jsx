@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { EDITABLE, ROOMS, ADMIN_ACCOUNT, STUDENTS_DB } from "../constants/data";
 import theme from "../constants/theme";
-import { uid, ts } from "../utils/helpers";
+import { uid, ts, sha256 } from "../utils/helpers";
 import store from "../utils/storage";
 import Icons from "../components/Icons";
 import { Badge, Card, Button, Input, SectionTitle, Empty, Divider, Tabs } from "../components/ui";
@@ -304,7 +304,8 @@ function LoginPage({ onLogin, onReset, onHelp, workers, verifyStudentInSheet, re
 
   const handleWorkerLogin = async () => {
     if (!wUser.trim() || !wPass.trim()) { setError("아이디와 비밀번호를 입력해주세요."); return; }
-    const found = workers.find(w => w.username === wUser.trim() && w.password === wPass.trim());
+    const inputHash = await sha256(wPass.trim());
+    const found = workers.find(w => w.username === wUser.trim() && w.passwordHash === inputHash);
     if (!found) { setError("아이디 또는 비밀번호가 올바르지 않습니다."); return; }
     setError("");
     setAuthLoading(true);
@@ -318,7 +319,8 @@ function LoginPage({ onLogin, onReset, onHelp, workers, verifyStudentInSheet, re
 
   const handleAdminLogin = async () => {
     if (!wUser.trim() || !wPass.trim()) { setError("아이디와 비밀번호를 입력해주세요."); return; }
-    if (wUser.trim() !== ADMIN_ACCOUNT.username || wPass.trim() !== ADMIN_ACCOUNT.password) {
+    const inputHash = await sha256(wPass.trim());
+    if (wUser.trim() !== ADMIN_ACCOUNT.username || inputHash !== ADMIN_ACCOUNT.passwordHash) {
       setError("아이디 또는 비밀번호가 올바르지 않습니다.");
       return;
     }
