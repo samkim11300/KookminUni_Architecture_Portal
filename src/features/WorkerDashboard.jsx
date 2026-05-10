@@ -9,6 +9,8 @@ function WorkerDashboard({ reservations, updateReservations, equipRentals, updat
   const [showNotifPopup, setShowNotifPopup] = useState(false);
   const [expandedChecklist, setExpandedChecklist] = useState(null);
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
+  const [visitorStartDate, setVisitorStartDate] = useState("");
+  const [visitorEndDate, setVisitorEndDate] = useState("");
   const todayRes = reservations.filter(r => r.status === "approved");
   const pendingRes = reservations.filter(r => r.status === "pending");
   const pendingRentals = equipRentals.filter(r => r.status === "pending_pickup");
@@ -64,14 +66,6 @@ function WorkerDashboard({ reservations, updateReservations, equipRentals, updat
     count: reservations.filter(r => r.date === date && r.status === "approved").length
   }));
   const maxDailyCount = 20;
-
-  // 일별 방문자 데이터 (월~일 고정)
-  const dailyVisitorStats = weekDays.map((date, i) => ({
-    date,
-    day: dayLabels[i],
-    count: (dailyVisits || {})[date] || 0,
-  }));
-  const maxVisitorCount = 100;
 
   // 도넛 차트 렌더링 함수
   const DonutChart = ({ data, size = 120, strokeWidth = 16 }) => {
@@ -450,76 +444,137 @@ function WorkerDashboard({ reservations, updateReservations, equipRentals, updat
 
           {/* 일별 방문자 선 그래프 */}
           <Card style={{ padding: 18 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: isMobile ? "flex-start" : "center", marginBottom: 16, flexDirection: isMobile ? "column" : "row", gap: isMobile ? 10 : 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <Icons.users size={15} color={theme.green} />
                 <span style={{ fontSize: 14, fontWeight: 700, color: theme.text }}>일별 방문자</span>
               </div>
-              <div style={{ fontSize: 11, color: theme.textMuted }}>{weekDays[0]} ~ {weekDays[6]}</div>
-            </div>
-            <div style={{ position: "relative", height: 160 }}>
-              {/* Y축 라벨 */}
-              <div style={{ position: "absolute", left: 0, top: 0, bottom: 24, display: "flex", flexDirection: "column", justifyContent: "space-between", fontSize: 10, color: theme.textDim, width: 24, textAlign: "right" }}>
-                <span>100</span>
-                <span>50</span>
-                <span>0</span>
-              </div>
-              {/* 그래프 영역 */}
-              <div style={{ marginLeft: 28, height: "calc(100% - 24px)", position: "relative" }}>
-                {/* 가로 가이드 라인 */}
-                {[0, 0.5, 1].map((ratio, i) => (
-                  <div key={i} style={{ position: "absolute", left: 0, right: 0, top: `${ratio * 100}%`, borderBottom: `1px ${i === 2 ? "solid" : "dashed"} ${theme.border}`, opacity: 0.5 }} />
-                ))}
-                {/* SVG 선 그래프 */}
-                <svg width="100%" height="100%" viewBox="0 0 700 136" preserveAspectRatio="none" style={{ position: "absolute", top: 0, left: 0 }}>
-                  {/* 영역 채우기 */}
-                  <polygon
-                    points={
-                      dailyVisitorStats.map((d, i) => {
-                        const x = ((i + 0.5) / 7) * 700;
-                        const y = 136 - (d.count / maxVisitorCount) * 136;
-                        return `${x},${y}`;
-                      }).join(" ") + ` ${((6 + 0.5) / 7) * 700},136 ${(0.5 / 7) * 700},136`
-                    }
-                    fill={theme.green}
-                    opacity={0.1}
-                  />
-                  {/* 선 */}
-                  <polyline
-                    points={dailyVisitorStats.map((d, i) => {
-                      const x = ((i + 0.5) / 7) * 700;
-                      const y = 136 - (d.count / maxVisitorCount) * 136;
-                      return `${x},${y}`;
-                    }).join(" ")}
-                    fill="none"
-                    stroke={theme.green}
-                    strokeWidth={3}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                  {/* 점 */}
-                  {dailyVisitorStats.map((d, i) => {
-                    const x = ((i + 0.5) / 7) * 700;
-                    const y = 136 - (d.count / maxVisitorCount) * 136;
-                    return (
-                      <g key={i}>
-                        <circle cx={x} cy={y} r={d.date === today ? 7 : 5} fill={theme.green} opacity={0.2} />
-                        <circle cx={x} cy={y} r={d.date === today ? 5 : 3.5} fill={d.date === today ? theme.green : theme.card} stroke={theme.green} strokeWidth={2} />
-                        <text x={x} y={y - 12} textAnchor="middle" fontSize="11" fontWeight="700" fill={theme.text} fontFamily={theme.fontMono}>
-                          {d.count}
-                        </text>
-                      </g>
-                    );
-                  })}
-                </svg>
-              </div>
-              {/* X축 라벨 (요일) */}
-              <div style={{ display: "flex", marginLeft: 28, marginTop: 6 }}>
-                {dailyVisitorStats.map((d, i) => (
-                  <span key={i} style={{ flex: 1, textAlign: "center", fontSize: 11, fontWeight: d.date === today ? 700 : 400, color: d.date === today ? theme.green : theme.textDim }}>{d.day}</span>
-                ))}
+              <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                <input type="date" value={visitorStartDate} onChange={e => setVisitorStartDate(e.target.value)}
+                  style={{ padding: "4px 8px", fontSize: 11, borderRadius: theme.radiusSm, border: `1px solid ${theme.border}`, background: theme.surface, color: theme.text, fontFamily: theme.fontMono, outline: "none", colorScheme: "dark" }}
+                />
+                <span style={{ fontSize: 11, color: theme.textDim }}>~</span>
+                <input type="date" value={visitorEndDate} onChange={e => setVisitorEndDate(e.target.value)}
+                  style={{ padding: "4px 8px", fontSize: 11, borderRadius: theme.radiusSm, border: `1px solid ${theme.border}`, background: theme.surface, color: theme.text, fontFamily: theme.fontMono, outline: "none", colorScheme: "dark" }}
+                />
+                {(visitorStartDate || visitorEndDate) && (
+                  <button onClick={() => { setVisitorStartDate(""); setVisitorEndDate(""); }}
+                    style={{ padding: "4px 8px", fontSize: 11, borderRadius: theme.radiusSm, border: `1px solid ${theme.border}`, background: theme.surface, color: theme.textMuted, cursor: "pointer", fontFamily: theme.font }}>
+                    초기화
+                  </button>
+                )}
               </div>
             </div>
+            {(() => {
+              // 날짜 구간이 선택되면 해당 구간, 아니면 이번 주 월~일
+              const useCustomRange = visitorStartDate && visitorEndDate && visitorStartDate <= visitorEndDate;
+              let rangeDates, rangeLabels;
+              if (useCustomRange) {
+                rangeDates = [];
+                const cur = new Date(visitorStartDate + "T00:00:00");
+                const end = new Date(visitorEndDate + "T00:00:00");
+                while (cur <= end) {
+                  rangeDates.push(cur.toISOString().slice(0, 10));
+                  cur.setDate(cur.getDate() + 1);
+                }
+                const dayMap = ["일", "월", "화", "수", "목", "금", "토"];
+                rangeLabels = rangeDates.map(d => {
+                  const dt = new Date(d + "T00:00:00");
+                  return rangeDates.length <= 14
+                    ? `${dt.getMonth() + 1}/${dt.getDate()}(${dayMap[dt.getDay()]})`
+                    : `${dt.getMonth() + 1}/${dt.getDate()}`;
+                });
+              } else {
+                rangeDates = weekDays;
+                rangeLabels = dayLabels;
+              }
+              const rangeStats = rangeDates.map((date, i) => ({
+                date,
+                label: rangeLabels[i],
+                count: (dailyVisits || {})[date] || 0,
+              }));
+              const maxCount = Math.max(...rangeStats.map(d => d.count), 1);
+              const yMax = Math.ceil(maxCount / 10) * 10 || 10;
+              const totalVisitors = rangeStats.reduce((s, d) => s + d.count, 0);
+              const n = rangeStats.length;
+              const showAsBar = n > 14;
+              const svgW = 700;
+              const svgH = 136;
+
+              return (
+                <>
+                  <div style={{ display: "flex", gap: 12, marginBottom: 12, fontSize: 12, color: theme.textMuted }}>
+                    <span>기간: <strong style={{ color: theme.text }}>{rangeDates[0]} ~ {rangeDates[rangeDates.length - 1]}</strong></span>
+                    <span>합계: <strong style={{ color: theme.green }}>{totalVisitors}명</strong></span>
+                  </div>
+                  <div style={{ position: "relative", height: 160 }}>
+                    {/* Y축 라벨 */}
+                    <div style={{ position: "absolute", left: 0, top: 0, bottom: 24, display: "flex", flexDirection: "column", justifyContent: "space-between", fontSize: 10, color: theme.textDim, width: 24, textAlign: "right" }}>
+                      <span>{yMax}</span>
+                      <span>{Math.round(yMax / 2)}</span>
+                      <span>0</span>
+                    </div>
+                    {/* 그래프 영역 */}
+                    <div style={{ marginLeft: 28, height: "calc(100% - 24px)", position: "relative" }}>
+                      {[0, 0.5, 1].map((ratio, i) => (
+                        <div key={i} style={{ position: "absolute", left: 0, right: 0, top: `${ratio * 100}%`, borderBottom: `1px ${i === 2 ? "solid" : "dashed"} ${theme.border}`, opacity: 0.5 }} />
+                      ))}
+                      {showAsBar ? (
+                        /* 바 차트 (15일 이상) */
+                        <div style={{ display: "flex", alignItems: "flex-end", height: "100%", gap: 1 }}>
+                          {rangeStats.map((d, i) => (
+                            <div key={i} title={`${d.date}: ${d.count}명`} style={{ flex: 1, height: `${Math.max((d.count / yMax) * 100, 2)}%`, background: d.date === today ? theme.green : `${theme.green}88`, borderRadius: "2px 2px 0 0", transition: "height 0.3s", minHeight: 2 }} />
+                          ))}
+                        </div>
+                      ) : (
+                        /* 선 그래프 (14일 이하) */
+                        <svg width="100%" height="100%" viewBox={`0 0 ${svgW} ${svgH}`} preserveAspectRatio="none" style={{ position: "absolute", top: 0, left: 0 }}>
+                          <polygon
+                            points={
+                              rangeStats.map((d, i) => {
+                                const x = ((i + 0.5) / n) * svgW;
+                                const y = svgH - (d.count / yMax) * svgH;
+                                return `${x},${y}`;
+                              }).join(" ") + ` ${((n - 0.5) / n) * svgW},${svgH} ${(0.5 / n) * svgW},${svgH}`
+                            }
+                            fill={theme.green} opacity={0.1}
+                          />
+                          <polyline
+                            points={rangeStats.map((d, i) => {
+                              const x = ((i + 0.5) / n) * svgW;
+                              const y = svgH - (d.count / yMax) * svgH;
+                              return `${x},${y}`;
+                            }).join(" ")}
+                            fill="none" stroke={theme.green} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round"
+                          />
+                          {rangeStats.map((d, i) => {
+                            const x = ((i + 0.5) / n) * svgW;
+                            const y = svgH - (d.count / yMax) * svgH;
+                            return (
+                              <g key={i}>
+                                <circle cx={x} cy={y} r={d.date === today ? 7 : 5} fill={theme.green} opacity={0.2} />
+                                <circle cx={x} cy={y} r={d.date === today ? 5 : 3.5} fill={d.date === today ? theme.green : theme.card} stroke={theme.green} strokeWidth={2} />
+                                <text x={x} y={y - 12} textAnchor="middle" fontSize="11" fontWeight="700" fill={theme.text} fontFamily={theme.fontMono}>
+                                  {d.count}
+                                </text>
+                              </g>
+                            );
+                          })}
+                        </svg>
+                      )}
+                    </div>
+                    {/* X축 라벨 */}
+                    <div style={{ display: "flex", marginLeft: 28, marginTop: 6, overflow: "hidden" }}>
+                      {rangeStats.map((d, i) => (
+                        <span key={i} style={{ flex: 1, textAlign: "center", fontSize: showAsBar ? 9 : 11, fontWeight: d.date === today ? 700 : 400, color: d.date === today ? theme.green : theme.textDim, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {showAsBar ? (i % Math.ceil(n / 10) === 0 ? d.label : "") : d.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
           </Card>
         </div>
       </div>
