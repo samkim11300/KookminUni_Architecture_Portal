@@ -188,6 +188,12 @@ function AdminPortal({ onLogout, logs, addLog, updateLogs, sheetConfig, updateSh
   const approveCertificate = async (cert) => {
     setApproving(true);
     try {
+      // pin이 cert에 없으면 Supabase에서 직접 조회
+      let password = cert.pin || "";
+      if (!password) {
+        const savedPin = await store.get(`studentPin_${cert.studentId}`);
+        if (savedPin) password = savedPin;
+      }
       const url = EDITABLE.safetySheet?.url?.trim();
       if (url) {
         const payload = {
@@ -198,7 +204,7 @@ function AdminPortal({ onLogout, logs, addLog, updateLogs, sheetConfig, updateSh
           studentYear: cert.studentYear || "",
           studentMajor: cert.studentMajor || "",
           studentEmail: cert.studentEmail || "",
-          password: cert.pin || "",
+          password,
           sheetName: EDITABLE.safetySheet?.sheetName || "",
           columns: EDITABLE.safetySheet?.columns || {},
         };
@@ -226,7 +232,7 @@ function AdminPortal({ onLogout, logs, addLog, updateLogs, sheetConfig, updateSh
             studentYear: cert.studentYear || "",
             studentMajor: cert.studentMajor || "",
             studentEmail: cert.studentEmail || "",
-            password: cert.pin || "",
+            password,
             sheetName: EDITABLE.safetySheet?.sheetName || "",
           });
           try {
@@ -291,7 +297,7 @@ function AdminPortal({ onLogout, logs, addLog, updateLogs, sheetConfig, updateSh
       updateCertificates(prev => {
         const next = { ...prev };
         // PIN은 로그인 검증용으로 유지, 나머지 파일 데이터만 제거
-        next[cert.studentId] = { pin: cert.pin, approved: true };
+        next[cert.studentId] = { pin: password || cert.pin, approved: true };
         return next;
       });
       // 레거시 파일 정리 (driveFileId 방식은 Drive 파일 유지)
