@@ -185,14 +185,16 @@ function LoginPage({ onLogin, onReset, onHelp, workers, verifyStudentInSheet, re
         setAuthLoading(false);
         return;
       }
-      // 비밀번호(PIN) 검증
+      // 비밀번호(PIN) 검증: 포털 업로드 PIN → 구글 시트 비밀번호 순으로 확인
       const certPin = certificates?.[sidTrim]?.pin || await store.get(`studentPin_${sidTrim}`);
-      if (!certPin) {
+      const sheetPassword = result?.student?.password;
+      const validPin = certPin || sheetPassword;
+      if (!validPin) {
         setError("안전교육이수증을 먼저 업로드해주세요.");
         setAuthLoading(false);
         return;
       }
-      if (certPin !== sPin.trim()) {
+      if (validPin !== sPin.trim()) {
         setError("비밀번호가 일치하지 않습니다.");
         setAuthLoading(false);
         return;
