@@ -311,6 +311,23 @@ function PrintManagement({ printRequests, updatePrintRequests, refreshPrintReque
                     <span>📋 {req.copies}장</span>
                     <span>💰 {req.totalPrice?.toLocaleString()}원</span>
                   </div>
+                  {req.printFile?.emailSent ? (
+                    <div style={{ fontSize: 12, color: theme.yellow, marginTop: 6, padding: "4px 10px", background: theme.yellowBg, borderRadius: 6, display: "inline-block" }}>
+                      📧 sakucopy 메일에 파일 있음
+                    </div>
+                  ) : (
+                    <a
+                      href={req.printFile?.driveUrl || "#"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={e => { if (!req.printFile?.driveUrl) e.preventDefault(); }}
+                      style={{ fontSize: 12, color: theme.green, marginTop: 6, padding: "4px 10px", background: theme.greenBg, borderRadius: 6, display: "inline-block", textDecoration: "none", cursor: req.printFile?.driveUrl ? "pointer" : "default", transition: "opacity 0.15s" }}
+                      onMouseEnter={e => { if (req.printFile?.driveUrl) e.currentTarget.style.opacity = "0.75"; }}
+                      onMouseLeave={e => { e.currentTarget.style.opacity = "1"; }}
+                    >
+                      📁 구글 드라이브[Portal_출력대기]에 파일 있음 {req.printFile?.driveUrl ? "→" : ""}
+                    </a>
+                  )}
                   {/* 반려 사유 표시 */}
                   {req.status === "rejected" && req.rejectReason && (
                     <div style={{ fontSize: 12, color: theme.red, marginTop: 6 }}>
