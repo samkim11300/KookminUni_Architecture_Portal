@@ -325,7 +325,7 @@ function PrintManagement({ printRequests, updatePrintRequests, refreshPrintReque
                       onMouseEnter={e => { if (req.printFile?.driveUrl) e.currentTarget.style.opacity = "0.75"; }}
                       onMouseLeave={e => { e.currentTarget.style.opacity = "1"; }}
                     >
-                      📁 구글 드라이브[Portal_출력대기]에 파일 있음 {req.printFile?.driveUrl ? "[클릭하면 다운로드 가능]" : ""}
+                      📁 구글 드라이브[Portal_출력대기]에 파일 있음 {req.printFile?.driveUrl ? "→" : ""}
                     </a>
                   )}
                   {/* 반려 사유 표시 */}
