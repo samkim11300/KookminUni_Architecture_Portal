@@ -532,7 +532,7 @@ function PrintRequest({ user, printRequests, updatePrintRequests, addLog, addNot
               </div>
               <div style={{ fontSize: 12, color: theme.textMuted, lineHeight: 1.6, marginBottom: 10 }}>
                 sakucopy@kookmin.ac.kr 이메일로 출력 파일만 보내주신 후, 체크박스 눌러주시고 입금내역캡처파일은 업로드해주셔야 합니다!
-                파일 제목 예시 - A2_Coated_1장_20xxxxx홍길동
+                \n 파일 제목 예시 - A2_Coated_1장_20xxxxx홍길동
               </div>
               <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: theme.text, fontWeight: 600 }}>
                 <input
