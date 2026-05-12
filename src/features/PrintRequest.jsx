@@ -531,7 +531,8 @@ function PrintRequest({ user, printRequests, updatePrintRequests, addLog, addNot
                 ⚠️ 파일 용량이 25MB를 초과합니다 ({(printFile.size / 1024 / 1024).toFixed(1)}MB)
               </div>
               <div style={{ fontSize: 12, color: theme.textMuted, lineHeight: 1.6, marginBottom: 10 }}>
-                sakucopy@kookmin.ac.kr 이메일로 출력 파일만 보내주신 후, 체크박스 눌러주시고 입금내역캡처파일은 업로드해주셔야 합니다!
+                sakucopy@kookmin.ac.kr 이메일로 출력파일을 보내주신 후, 체크박스 눌러주시고 입금내역캡처파일은 업로드해주셔야 합니다!
+                <br />출력파일 제목을 <strong style={{ color: theme.text }}>"{`${paperSize}_${colorModeLabel}_${copies}장_${user.id}${user.name}`}"</strong>으로 보내주세요.
               </div>
               <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: theme.text, fontWeight: 600 }}>
                 <input
