@@ -114,7 +114,6 @@ function PrintRequest({ user, printRequests, updatePrintRequests, addLog, addNot
       // 날짜 폴더 (YY.MM.DD)
       const now = new Date();
       const dateFolder = `${String(now.getFullYear()).slice(-2)}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")}`;
-      const studentLabel = `${user.id}+${user.name}`;
       const paymentExt = (paymentProof.name || "img").split(".").pop() || "jpg";
 
       const gasUrl = EDITABLE.printArchive?.gasUrl?.trim();
@@ -124,7 +123,7 @@ function PrintRequest({ user, printRequests, updatePrintRequests, addLog, addNot
         return;
       }
 
-      const paymentFileName = `[입금내역]${studentLabel}.${paymentExt}`;
+      const paymentFileName = `[입금내역]${user.id}-${user.name}.${paymentExt}`;
 
       // GAS upload_print 호출 (no-cors — CORS 문제 우회, 응답 읽기 불가)
       const uploadToGAS = async (base64, fileName, mimeType) => {
@@ -201,7 +200,7 @@ function PrintRequest({ user, printRequests, updatePrintRequests, addLog, addNot
         }
       } else {
         const printExt = (printFile.name || "file").split(".").pop() || "bin";
-        const printFileName = `[출력파일]${studentLabel}.${printExt}`;
+        const printFileName = `[출력파일]${paperSize}_${colorModeLabel}_${copies}장_${user.id}-${user.name}.${printExt}`;
 
         const [printBase64, paymentBase64] = await Promise.all([
           readAsBase64(printFile.rawFile),
