@@ -52,14 +52,12 @@ function PrintRequest({ user, printRequests, updatePrintRequests, addLog, addNot
   const [colorMode, setColorMode] = useState("COATED_DRAWING");
   const [copies, setCopies] = useState(1);
   const [plus600Count, setPlus600Count] = useState(0);
-  const [printFile, setPrintFile] = useState(null);
   const [paymentProof, setPaymentProof] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [showPopup, setShowPopup] = useState(false);
   const [lastRequest, setLastRequest] = useState(null);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [emailSentChecked, setEmailSentChecked] = useState(false);
-  const printFileRef = useRef(null);
   const paymentFileRef = useRef(null);
 
   const priceKey = `${paperSize}_${colorMode}`;
@@ -68,16 +66,6 @@ function PrintRequest({ user, printRequests, updatePrintRequests, addLog, addNot
   const colorModeLabel = PRINT_TYPE_LABELS[colorMode] || colorMode;
   const totalPrice = (unitPrice * copies) + (plus600UnitPrice * plus600Count * copies);
 
-  const MAX_FILE_SIZE = 25 * 1024 * 1024;
-  const isLargeFile = printFile && printFile.size >= MAX_FILE_SIZE;
-
-  const handlePrintFileUpload = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setPrintFile({ name: file.name, size: file.size, type: file.type, rawFile: file });
-    setEmailSentChecked(false);
-  };
-
   const handlePaymentUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -85,8 +73,8 @@ function PrintRequest({ user, printRequests, updatePrintRequests, addLog, addNot
   };
 
   const handleSubmit = async () => {
-    if (!printFile) {
-      alert("출력할 파일을 업로드해주세요.");
+    if (!emailSentChecked) {
+      alert("출력 파일을 메일로 전송했는지 확인 후 체크해주세요.");
       return;
     }
     if (!paymentProof) {
@@ -187,39 +175,13 @@ function PrintRequest({ user, printRequests, updatePrintRequests, addLog, addNot
         }
       };
 
-      let printResult = null;
+      // 출력 파일은 항상 이메일로 전송받으므로 입금 캡처만 업로드
       let paymentResult = null;
-
-      // 25MB 이상: 출력 파일은 이메일로 전송했으므로 입금 캡처만 업로드
-      if (isLargeFile) {
-        const paymentBase64 = await readAsBase64(paymentProof.rawFile);
-        const paymentUploadResult = await uploadToGAS(paymentBase64, paymentFileName, paymentProof.type);
-        paymentResult = paymentUploadResult;
-        if (!paymentResult?.fileId) {
-          paymentResult = await waitForFile(paymentFileName);
-        }
-      } else {
-        const printExt = (printFile.name || "file").split(".").pop() || "bin";
-        const printFileName = `[출력파일]${paperSize}_${colorModeLabel}_${copies}장_${user.id}-${user.name}.${printExt}`;
-
-        const [printBase64, paymentBase64] = await Promise.all([
-          readAsBase64(printFile.rawFile),
-          readAsBase64(paymentProof.rawFile),
-        ]);
-
-        // 순차 업로드 (GAS 동시 실행 제한 회피)
-        const printUploadResult = await uploadToGAS(printBase64, printFileName, printFile.type);
-        const paymentUploadResult = await uploadToGAS(paymentBase64, paymentFileName, paymentProof.type);
-
-        printResult = printUploadResult;
-        paymentResult = paymentUploadResult;
-
-        if (!printResult?.fileId) {
-          printResult = await waitForFile(printFileName);
-        }
-        if (!paymentResult?.fileId) {
-          paymentResult = await waitForFile(paymentFileName);
-        }
+      const paymentBase64 = await readAsBase64(paymentProof.rawFile);
+      const paymentUploadResult = await uploadToGAS(paymentBase64, paymentFileName, paymentProof.type);
+      paymentResult = paymentUploadResult;
+      if (!paymentResult?.fileId) {
+        paymentResult = await waitForFile(paymentFileName);
       }
 
       const newRequest = {
@@ -237,10 +199,11 @@ function PrintRequest({ user, printRequests, updatePrintRequests, addLog, addNot
         plus600UnitPrice,
         plus600Price: plus600UnitPrice * plus600Count * copies,
         printFile: {
-          name: printFile.name, size: printFile.size, type: printFile.type,
-          driveFileId: printResult?.fileId || null,
-          driveUrl: printResult?.downloadUrl || null,
-          emailSent: isLargeFile || false,
+          name: `${paperSize}_${colorModeLabel}_${copies}장 (메일 전송)`,
+          size: 0, type: "email",
+          driveFileId: null,
+          driveUrl: null,
+          emailSent: true,
         },
         paymentProof: { name: paymentProof.name, size: paymentProof.size, type: paymentProof.type, driveFileId: paymentResult.fileId, driveUrl: paymentResult.viewUrl },
         status: "pending",
@@ -261,8 +224,8 @@ function PrintRequest({ user, printRequests, updatePrintRequests, addLog, addNot
       });
 
       setLastRequest(newRequest);
-      setPrintFile(null);
       setPaymentProof(null);
+      setEmailSentChecked(false);
       setCopies(1);
       setPlus600Count(0);
       setShowPopup(true);
@@ -512,39 +475,22 @@ function PrintRequest({ user, printRequests, updatePrintRequests, addLog, addNot
         </div>
 
         <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: theme.textMuted, marginBottom: 8 }}>출력 파일 업로드 <span style={{ color: theme.red }}>*</span></div>
-          <input type="file" ref={printFileRef} onChange={handlePrintFileUpload} accept=".pdf,.jpg,.jpeg,.png,.ai,.psd,.dwg" style={{ display: "none" }} />
-          <button onClick={() => printFileRef.current?.click()} style={{
-            width: "100%", padding: 16, borderRadius: 8,
-            border: `2px dashed ${printFile ? (isLargeFile ? theme.yellow : theme.green) : theme.border}`,
-            background: printFile ? (isLargeFile ? theme.yellowBg : theme.greenBg) : "transparent",
-            color: printFile ? (isLargeFile ? theme.yellow : theme.green) : theme.textMuted,
-            fontSize: 13, cursor: "pointer", fontFamily: theme.font, textAlign: "center",
-          }}>
-            {printFile
-              ? `${isLargeFile ? "⚠️" : "✅"} ${printFile.name} (${(printFile.size / 1024 / 1024).toFixed(1)}MB)`
-              : "📎 파일을 선택하세요 (PDF, JPG, PNG, AI, PSD, DWG)"}
-          </button>
-          {isLargeFile && (
-            <div style={{ marginTop: 10, padding: "12px 14px", background: theme.yellowBg, borderRadius: 8, border: `1px solid ${theme.yellow}` }}>
-              <div style={{ fontSize: 12, color: theme.yellow, fontWeight: 600, marginBottom: 8 }}>
-                ⚠️ 파일 용량이 25MB를 초과합니다 ({(printFile.size / 1024 / 1024).toFixed(1)}MB)
-              </div>
-              <div style={{ fontSize: 12, color: theme.textMuted, lineHeight: 1.6, marginBottom: 10 }}>
-                sakucopy@kookmin.ac.kr 이메일로 출력 파일만 보내주신 후, 체크박스 눌러주시고 입금내역캡처파일은 업로드해주셔야 합니다!
-                <br />파일 제목 예시 - A2_Coated_1장_20xxxxx홍길동
-              </div>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: theme.text, fontWeight: 600 }}>
-                <input
-                  type="checkbox"
-                  checked={emailSentChecked}
-                  onChange={e => setEmailSentChecked(e.target.checked)}
-                  style={{ width: 18, height: 18, accentColor: theme.accent, cursor: "pointer" }}
-                />
-                이메일로 출력 파일을 발송했습니다
-              </label>
+          <div style={{ fontSize: 12, fontWeight: 600, color: theme.textMuted, marginBottom: 8 }}>출력 파일 전송 <span style={{ color: theme.red }}>*</span></div>
+          <div style={{ padding: "12px 14px", background: theme.yellowBg, borderRadius: 8, border: `1px solid ${theme.yellow}` }}>
+            <div style={{ fontSize: 12, color: theme.textMuted, lineHeight: 1.6, marginBottom: 10 }}>
+              출력 파일은 <strong>sakucopy@kookmin.ac.kr</strong> 이메일로 보내주신 후 아래 항목을 체크해주세요.
+              <br />파일 제목 예시 - A2_Coated_1장_20xxxxx홍길동
             </div>
-          )}
+            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: theme.text, fontWeight: 600 }}>
+              <input
+                type="checkbox"
+                checked={emailSentChecked}
+                onChange={e => setEmailSentChecked(e.target.checked)}
+                style={{ width: 18, height: 18, accentColor: theme.accent, cursor: "pointer" }}
+              />
+              출력 파일을 메일로 전송했습니다
+            </label>
+          </div>
         </div>
 
         <div style={{ marginBottom: 16 }}>
@@ -562,10 +508,14 @@ function PrintRequest({ user, printRequests, updatePrintRequests, addLog, addNot
           </button>
         </div>
 
-        <Button size="lg" onClick={handleSubmit} disabled={submitting || !printFile || !paymentProof || (isLargeFile && !emailSentChecked)} style={{ width: "100%", justifyContent: "center" }}>
-          {submitting ? "신청 중..." : (isLargeFile && !emailSentChecked
-            ? "입금캡처파일 업로드 필요"
-            : "출력 신청하기")}
+        <Button size="lg" onClick={handleSubmit} disabled={submitting || !emailSentChecked || !paymentProof} style={{ width: "100%", justifyContent: "center" }}>
+          {submitting
+            ? "신청 중..."
+            : !emailSentChecked
+              ? "메일 전송 확인 필요"
+              : !paymentProof
+                ? "입금캡처파일 업로드 필요"
+                : "출력 신청하기"}
         </Button>
       </Card>
 

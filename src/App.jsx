@@ -63,6 +63,13 @@ export default function App() {
   const [equipRentals, setEquipRentals] = useState([]);
   const [logs, setLogs] = useState([]);
   const [notifications, setNotifications] = useState([]);
+  // 알림 "읽음" 상태는 기기별 로컬에 저장한다.
+  // (notifications 목록은 여러 클라이언트가 공유하는 Firebase 키라서, 다른 기기가 새 알림을
+  //  추가하며 목록 전체를 덮어쓰면 이전에 읽음 처리한 알림이 다시 안읽음으로 되살아나기 때문)
+  const [readNotifIds, setReadNotifIds] = useState(() => {
+    const saved = store.localGet("readNotifIds");
+    return new Set(Array.isArray(saved) ? saved : []);
+  });
   const [workers, setWorkers] = useState(DEFAULT_WORKERS);
   const [sheetConfig, setSheetConfig] = useState({
     reservationWebhookUrl: "https://script.google.com/macros/s/AKfycbwyzzFFUQRLjITW6D6YVw4RzVoB4ye80-tb7Tsan4RspCPAIdq3pV4C9_ixeGp6Hdotpg/exec",
@@ -235,7 +242,16 @@ export default function App() {
           await store.set("__student_keys_migrated_v1__", true);
         }
         if (lg) setLogs(lg);
-        if (notif) setNotifications(notif);
+        if (notif) {
+          setNotifications(notif);
+          // 더 이상 존재하지 않는 알림의 읽음 기록은 정리한다.
+          const liveIds = new Set(notif.map(n => n.id));
+          setReadNotifIds(prev => {
+            const pruned = new Set([...prev].filter(id => liveIds.has(id)));
+            if (pruned.size !== prev.size) store.localSet("readNotifIds", [...pruned]);
+            return pruned;
+          });
+        }
         if (sheet) setSheetConfig(sheet);
         if (overdue) setOverdueFlags(overdue);
         if (inq) setInquiries(inq);
@@ -572,28 +588,63 @@ export default function App() {
 
   const updatePrintRequests = useCallback((updater) => {
     setPrintRequests(prev => {
-      const next = typeof updater === "function" ? updater(prev) : updater;
+      const prevArr = Array.isArray(prev) ? prev : [];
+      const nextRaw = typeof updater === "function" ? updater(prevArr) : updater;
+      const nextArr = Array.isArray(nextRaw) ? nextRaw : [];
       lastLocalPrintWrite.current = Date.now();
 
-      // 로컬 + Supabase 동시 쓰기 (실패 시 재시도)
+      // prev → next 차이로 "의도한 변경"만 추출 (stale 스냅샷 전체 덮어쓰기 방지)
+      const prevById = new Map(prevArr.map(r => [r.id, r]));
+      const nextById = new Map(nextArr.map(r => [r.id, r]));
+      const removedIds = [...prevById.keys()].filter(id => !nextById.has(id));
+      // 새로 추가됐거나(이전에 없던 id) 객체 참조가 바뀐(수정된) 항목만 upsert 대상
+      const upserted = nextArr.filter(r => {
+        const before = prevById.get(r.id);
+        return !before || before !== r;
+      });
+
+      // 서버 최신 상태를 기준으로 변경분만 병합하여 기록
       const syncToServer = async () => {
         try {
-          await persist("printRequests_v2", next);
+          const serverRaw = await supabaseStore.get("portal/printRequests_v2");
+          const serverArr = parseArrayData(serverRaw) || [];
+          // 서버 데이터를 가져오지 못한 경우(네트워크 오류 등)엔 로컬 next로 폴백
+          const base = (serverArr.length > 0 || serverRaw == null)
+            ? new Map(serverArr.map(r => [r.id, r]))
+            : new Map(nextArr.map(r => [r.id, r]));
+
+          for (const id of removedIds) base.delete(id);
+          for (const r of upserted) base.set(r.id, r);
+
+          // 최신 신청이 앞으로 오도록 createdAt 내림차순 정렬
+          const merged = [...base.values()].sort((a, b) =>
+            String(b.createdAt || "").localeCompare(String(a.createdAt || ""))
+          );
+
+          // 병합 결과를 로컬 state에도 반영 (서버의 다른 변경분 흡수)
+          setPrintRequests(merged);
+
+          try {
+            await persist("printRequests_v2", merged);
+          } catch (e) {
+            console.error("[PRINT SYNC] persist 실패:", e);
+          }
+          let ok = await supabaseStore.set("portal/printRequests_v2", merged);
+          if (!ok) {
+            console.warn("[PRINT SYNC] supabase 1차 쓰기 실패, 1초 후 재시도...");
+            await new Promise(r => setTimeout(r, 1000));
+            ok = await supabaseStore.set("portal/printRequests_v2", merged);
+            if (!ok) console.error("[PRINT SYNC] supabase 재시도도 실패");
+          }
+          console.log("[PRINT SYNC] 병합 완료, items:", merged.length, "(추가/수정:", upserted.length, "삭제:", removedIds.length, ") supabase:", ok ? "성공" : "실패");
         } catch (e) {
-          console.error("[PRINT SYNC] persist 실패:", e);
+          console.error("[PRINT SYNC] 병합 동기화 실패:", e);
         }
-        let ok = await supabaseStore.set("portal/printRequests_v2", next);
-        if (!ok) {
-          console.warn("[PRINT SYNC] supabase 1차 쓰기 실패, 1초 후 재시도...");
-          await new Promise(r => setTimeout(r, 1000));
-          ok = await supabaseStore.set("portal/printRequests_v2", next);
-          if (!ok) console.error("[PRINT SYNC] supabase 재시도도 실패");
-        }
-        console.log("[PRINT SYNC] 완료, items:", next?.length, "supabase:", ok ? "성공" : "실패");
       };
       syncToServer();
 
-      return next;
+      // 낙관적 업데이트: 우선 next를 반영하고, 병합 결과가 오면 위에서 덮어씀
+      return nextArr;
     });
   }, [persist]);
 
@@ -698,20 +749,23 @@ export default function App() {
   }, [dataLoaded, reservations, equipRentals, printRequests, visitCount]);
 
   const markNotifRead = useCallback((id) => {
-    setNotifications(prev => {
-      const next = prev.map(n => n.id === id ? { ...n, read: true } : n);
-      persist("notifications", next);
+    setReadNotifIds(prev => {
+      if (prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.add(id);
+      store.localSet("readNotifIds", [...next]);
       return next;
     });
-  }, [persist]);
+  }, []);
 
   const markAllNotifsRead = useCallback(() => {
-    setNotifications(prev => {
-      const next = prev.map(n => ({ ...n, read: true }));
-      persist("notifications", next);
+    setReadNotifIds(prev => {
+      const next = new Set(prev);
+      notifications.forEach(n => next.add(n.id));
+      store.localSet("readNotifIds", [...next]);
       return next;
     });
-  }, [persist]);
+  }, [notifications]);
 
   const verifyStudentInSheet = useCallback(async (studentId, studentName) => {
     const cfg = EDITABLE?.safetySheet;
@@ -1187,7 +1241,12 @@ export default function App() {
     await Promise.all(cleanupPromises);
   };
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  // 읽음 상태(기기별 로컬)를 공유 알림 목록에 합쳐서 화면에 전달한다.
+  const notificationsView = useMemo(
+    () => notifications.map(n => ({ ...n, read: n.read || readNotifIds.has(n.id) })),
+    [notifications, readNotifIds]
+  );
+  const unreadCount = notificationsView.filter(n => !n.read).length;
 
   if (!dataLoaded) return <PortalLoadingScreen isDark={isDark} />;
 
@@ -1273,7 +1332,7 @@ export default function App() {
             equipRentals={equipRentals} updateEquipRentals={updateEquipRentals}
             equipmentDB={equipmentDB} setEquipmentDB={setEquipmentDB}
             logs={logs} addLog={addLog}
-            notifications={notifications} markNotifRead={markNotifRead} markAllNotifsRead={markAllNotifsRead}
+            notifications={notificationsView} markNotifRead={markNotifRead} markAllNotifsRead={markAllNotifsRead}
             unreadCount={unreadCount}
             sendEmailNotification={sendEmailNotification}
             inquiries={inquiries} updateInquiries={updateInquiries}

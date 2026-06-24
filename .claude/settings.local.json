@@ -19,7 +19,10 @@
       "Bash(\"/c/Users/samki/.nvm/versions/node/v22.11.0/bin/node\" --version)",
       "Read(//c/Users/samki/AppData/Roaming/**)",
       "Read(//c/Users/samki/scoop/apps/**)",
-      "Bash(powershell.exe -Command \"Get-Command node -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source\")"
+      "Bash(powershell.exe -Command \"Get-Command node -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source\")",
+      "Skill(run)",
+      "Skill(run:*)",
+      "PowerShell(\\(Get-Command node -ErrorAction SilentlyContinue\\).Source; \\(Get-Command npm -ErrorAction SilentlyContinue\\).Source; $env:PATH -split ';' | Where-Object { $_ -match 'node' })"
     ]
   }
 }
