@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { EDITABLE } from "../constants/data";
 import theme from "../constants/theme";
-import { uid, ts, dateStr, tomorrow, addDays } from "../utils/helpers";
+import { uid, ts, dateStr, tomorrow } from "../utils/helpers";
 import Icons from "../components/Icons";
 import { Badge, Card, Button, Input, SectionTitle, Empty, AlertPopup } from "../components/ui";
 
@@ -26,9 +26,16 @@ const nextWeekday = (dateStr) => {
   return d.toISOString().split("T")[0];
 };
 
+const nextDay = (dateStr) => {
+  const d = new Date(dateStr + "T00:00:00");
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().split("T")[0];
+};
+
 function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, setEquipmentDB, categoryOrder, addLog, addNotification, syncEquipToSheet, isMobile }) {
   const [selected, setSelected] = useState(null);
-  const [returnDate, setReturnDate] = useState(nextWeekday(addDays(3)));
+  const [rentDate, setRentDate] = useState(nextWeekday(dateStr()));
+  const [returnDate, setReturnDate] = useState(nextWeekday(tomorrow()));
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(null);
@@ -45,6 +52,19 @@ function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, 
   const categories = ["전체", ...orderedCats];
   const filtered = filterCat === "전체" ? equipmentDB : equipmentDB.filter(e => e.category === filterCat);
 
+  // 권장 반납일 = 대여 예정일의 익일(다음 평일). 이보다 늦으면 이틀 이상 대여로 담당자 승인 필요.
+  const recommendedReturn = nextWeekday(nextDay(rentDate));
+  const needsApproval = returnDate > recommendedReturn;
+  const returnBeforeRent = returnDate < rentDate;
+
+  // 대여 예정일 변경 시, 반납일이 대여일보다 빠르면 권장 반납일로 맞춰줌
+  const handleRentDateChange = (val) => {
+    if (!val) return;
+    if (isWeekend(val)) setShowWeekendPopup(true);
+    setRentDate(val);
+    if (returnDate < val) setReturnDate(nextWeekday(nextDay(val)));
+  };
+
   const toggleEquip = (id) => {
     setSelected(prev => prev === id ? null : id);
     setStandQty(1);
@@ -53,8 +73,9 @@ function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, 
   const handleSubmit = () => {
     if (!selected) return;
     if (!phone.trim()) return;
-    if (isWeekend(returnDate)) { setShowWeekendPopup(true); return; }
-    if (isPast(returnDate)) return;
+    if (isWeekend(rentDate) || isWeekend(returnDate)) { setShowWeekendPopup(true); return; }
+    if (isPast(rentDate) || isPast(returnDate)) return;
+    if (returnBeforeRent) return;
     setSubmitting(true);
     setTimeout(() => {
       const item = equipmentDB.find(e => e.id === selected);
@@ -63,11 +84,11 @@ function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, 
       const rental = {
         id: uid(), type: "equipment", studentId: user.id, studentName: user.name, studentDept: user.dept, studentEmail: user.email || "",
         items: [{ id: item.id, name: item.name, icon: item.icon, qty }],
-        returnDate, note: note || "", phone: phone.trim(), status: "pending_pickup", createdAt: ts(),
+        rentDate, returnDate, note: note || "", phone: phone.trim(), status: "pending_pickup", createdAt: ts(),
       };
       updateEquipRentals(prev => [rental, ...prev]);
       setEquipmentDB(prev => prev.map(e => e.id === item.id ? { ...e, available: Math.max(0, e.available - qty) } : e));
-      addLog(`[기구대여] ${user.name}(${user.id}) → ${item.name} x${qty} | 반납: ${returnDate}`, "equipment", { studentId: user.id });
+      addLog(`[기구대여] ${user.name}(${user.id}) → ${item.name} x${qty} | 대여: ${rentDate} · 반납: ${returnDate}`, "equipment", { studentId: user.id });
       addNotification(`🔧 기구대여 요청: ${user.name} → ${item.name} x${qty}`, "equipment", true);
       syncEquipToSheet?.(rental);
       setSuccess(rental);
@@ -88,7 +109,7 @@ function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, 
             <div>
               <div style={{ fontSize: 14, fontWeight: 700, color: theme.green }}>대여 신청 완료!</div>
               <div style={{ fontSize: 13, color: theme.textMuted, marginTop: 2 }}>
-                {success.items.map(i => i.name).join(", ")} · 반납 {success.returnDate}
+                {success.items.map(i => i.name).join(", ")} · 대여 {success.rentDate} · 반납 {success.returnDate}
               </div>
             </div>
             <Button variant="ghost" size="sm" style={{ marginLeft: "auto" }} onClick={() => setSuccess(null)}><Icons.x size={14} /></Button>
@@ -139,7 +160,6 @@ function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, 
                     <div style={{ fontSize: 14, fontWeight: 600, color: sel ? theme.accent : theme.text }}>{eq.name}</div>
                     <div style={{ display: "flex", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
                       <Badge color={eq.available > 0 ? "dim" : "red"} style={{ fontSize: 10 }}>재고 {eq.available}/{eq.total}</Badge>
-                      <Badge color="dim" style={{ fontSize: 10 }}>최대 {eq.maxDays}일</Badge>
                     </div>
                   </div>
                   {sel && <div style={{ color: theme.accent }}><Icons.check size={20} /></div>}
@@ -183,7 +203,6 @@ function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, 
                       <div style={{ fontSize: 15, fontWeight: 600, color: theme.text, marginBottom: 4 }}>{eq.name}</div>
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                         <Badge color="dim">재고 {eq.available}/{eq.total}</Badge>
-                        <Badge color="blue">최대 {eq.maxDays}일 대여</Badge>
                         {eq.deposit && <Badge color="yellow">보증금 필요</Badge>}
                       </div>
                     </div>
@@ -205,19 +224,26 @@ function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, 
                   </>
                 )}
 
-                {/* Return Info */}
-                <SectionTitle icon={<Icons.calendar size={16} color={theme.accent} />}>반납 정보</SectionTitle>
+                {/* Rent / Return Info */}
+                <SectionTitle icon={<Icons.calendar size={16} color={theme.accent} />}>대여·반납 정보</SectionTitle>
                 <Card style={{ marginBottom: 24 }}>
                   <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      <Input label="대여 예정일" type="date" value={rentDate} onChange={e => handleRentDateChange(e.target.value)}
+                        style={{ maxWidth: 180, borderColor: (isWeekend(rentDate) || isPast(rentDate)) ? theme.red : undefined }} />
+                      <div style={{ fontSize: 11, color: (isWeekend(rentDate) || isPast(rentDate)) ? theme.red : theme.textDim, fontWeight: (isWeekend(rentDate) || isPast(rentDate)) ? 600 : 400 }}>
+                        {isPast(rentDate) ? "⚠️ 과거 날짜는 불가" : isWeekend(rentDate) ? "⚠️ 주말은 대여 불가" : "물품을 수령할 날짜"}
+                      </div>
+                    </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                       <Input label="반납 예정일" type="date" value={returnDate} onChange={e => {
                         const val = e.target.value;
                         if (!val) return;
                         if (isWeekend(val)) setShowWeekendPopup(true);
                         setReturnDate(val);
-                      }} style={{ maxWidth: 180, borderColor: (isWeekend(returnDate) || isPast(returnDate)) ? theme.red : undefined }} />
-                      <div style={{ fontSize: 11, color: (isWeekend(returnDate) || isPast(returnDate)) ? theme.red : theme.textDim, fontWeight: (isWeekend(returnDate) || isPast(returnDate)) ? 600 : 400 }}>
-                        {isPast(returnDate) ? "⚠️ 과거 날짜는 불가" : isWeekend(returnDate) ? "⚠️ 주말은 반납 불가" : "주말(토·일) 반납 불가"}
+                      }} style={{ maxWidth: 180, borderColor: (isWeekend(returnDate) || isPast(returnDate) || returnBeforeRent) ? theme.red : undefined }} />
+                      <div style={{ fontSize: 11, color: (isWeekend(returnDate) || isPast(returnDate) || returnBeforeRent) ? theme.red : theme.textDim, fontWeight: (isWeekend(returnDate) || isPast(returnDate) || returnBeforeRent) ? 600 : 400 }}>
+                        {returnBeforeRent ? "⚠️ 대여일 이후로 선택" : isPast(returnDate) ? "⚠️ 과거 날짜는 불가" : isWeekend(returnDate) ? "⚠️ 주말은 반납 불가" : "주말(토·일) 반납 불가"}
                       </div>
                     </div>
                     <div style={{ minWidth: 180 }}>
@@ -239,6 +265,16 @@ function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, 
                       <Input label="비고 (선택)" placeholder="예: 수업용, 팀프로젝트 등" value={note} onChange={e => setNote(e.target.value)} />
                     </div>
                   </div>
+                  <div style={{
+                    marginTop: 14, padding: "10px 12px", borderRadius: 8,
+                    background: needsApproval ? theme.yellowBg : theme.surface,
+                    border: `1px solid ${needsApproval ? theme.yellowBorder : theme.border}`,
+                    fontSize: 12, color: needsApproval ? theme.yellow : theme.textMuted, lineHeight: 1.6, wordBreak: "keep-all",
+                  }}>
+                    {needsApproval
+                      ? "⚠️ 이틀 이상 대여를 선택하셨습니다. 이 경우 담당자(교학팀)의 승인이 필요하며, 승인 전에는 수령이 제한될 수 있습니다."
+                      : "💡 권장 대여 기간은 1일(익일 반납)입니다. 이틀 이상 대여를 원하시면 담당자(교학팀)의 승인이 필요합니다."}
+                  </div>
                 </Card>
 
                 {/* Summary */}
@@ -246,12 +282,13 @@ function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, 
                   <div style={{ fontSize: 12, color: theme.textMuted, marginBottom: 8 }}>대여 요약</div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
                     <Badge color="accent">{eq.icon} {eq.name}{eq.isStand ? ` x${standQty}` : ""}</Badge>
+                    <Badge color="blue">대여: {rentDate}</Badge>
                     <Badge color="blue">반납: {returnDate}</Badge>
                   </div>
                 </Card>
 
-                <Button size="lg" onClick={handleSubmit} disabled={submitting || isWeekend(returnDate) || isPast(returnDate) || !phone.trim()} style={{ width: "100%", justifyContent: "center", marginBottom: 40 }}>
-                  {submitting ? "신청 중..." : isPast(returnDate) ? "과거 날짜는 반납일로 설정 불가" : isWeekend(returnDate) ? "주말은 반납일로 설정 불가" : !phone.trim() ? "연락처를 입력해주세요" : `${eq.name} 대여 신청`}
+                <Button size="lg" onClick={handleSubmit} disabled={submitting || isWeekend(rentDate) || isWeekend(returnDate) || isPast(rentDate) || isPast(returnDate) || returnBeforeRent || !phone.trim()} style={{ width: "100%", justifyContent: "center", marginBottom: 40 }}>
+                  {submitting ? "신청 중..." : (isPast(rentDate) || isPast(returnDate)) ? "과거 날짜는 설정 불가" : (isWeekend(rentDate) || isWeekend(returnDate)) ? "주말은 대여/반납일로 설정 불가" : returnBeforeRent ? "반납일은 대여일 이후로 선택" : !phone.trim() ? "연락처를 입력해주세요" : `${eq.name} 대여 신청`}
                 </Button>
               </div>
             );
@@ -280,7 +317,6 @@ function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, 
                   <div style={{ fontSize: 16, fontWeight: 700, color: theme.text, marginBottom: 6 }}>{eq.name}</div>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     <Badge color="dim">재고 {eq.available}/{eq.total}</Badge>
-                    <Badge color="blue">최대 {eq.maxDays}일</Badge>
                     {eq.deposit && <Badge color="yellow">보증금 필요</Badge>}
                   </div>
                 </div>
@@ -298,14 +334,31 @@ function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, 
                 </div>
               )}
               <div style={{ marginBottom: 16 }}>
+                <Input label="대여 예정일" type="date" value={rentDate} onChange={e => handleRentDateChange(e.target.value)}
+                  style={{ borderColor: (isWeekend(rentDate) || isPast(rentDate)) ? theme.red : undefined }} />
+                <div style={{ fontSize: 11, marginTop: 4, color: (isWeekend(rentDate) || isPast(rentDate)) ? theme.red : theme.textDim, fontWeight: (isWeekend(rentDate) || isPast(rentDate)) ? 600 : 400 }}>
+                  {isPast(rentDate) ? "⚠️ 과거 날짜는 불가" : isWeekend(rentDate) ? "⚠️ 주말은 대여 불가" : "물품을 수령할 날짜"}
+                </div>
+              </div>
+              <div style={{ marginBottom: 16 }}>
                 <Input label="반납 예정일" type="date" value={returnDate} onChange={e => {
                   const val = e.target.value;
                   if (!val) return;
                   if (isWeekend(val)) setShowWeekendPopup(true);
                   setReturnDate(val);
-                }} style={{ borderColor: (isWeekend(returnDate) || isPast(returnDate)) ? theme.red : undefined }} />
-                <div style={{ fontSize: 11, marginTop: 4, color: (isWeekend(returnDate) || isPast(returnDate)) ? theme.red : theme.textDim, fontWeight: (isWeekend(returnDate) || isPast(returnDate)) ? 600 : 400 }}>
-                  {isPast(returnDate) ? "⚠️ 과거 날짜는 불가" : isWeekend(returnDate) ? "⚠️ 주말은 반납 불가" : "주말(토·일) 반납 불가"}
+                }} style={{ borderColor: (isWeekend(returnDate) || isPast(returnDate) || returnBeforeRent) ? theme.red : undefined }} />
+                <div style={{ fontSize: 11, marginTop: 4, color: (isWeekend(returnDate) || isPast(returnDate) || returnBeforeRent) ? theme.red : theme.textDim, fontWeight: (isWeekend(returnDate) || isPast(returnDate) || returnBeforeRent) ? 600 : 400 }}>
+                  {returnBeforeRent ? "⚠️ 대여일 이후로 선택" : isPast(returnDate) ? "⚠️ 과거 날짜는 불가" : isWeekend(returnDate) ? "⚠️ 주말은 반납 불가" : "주말(토·일) 반납 불가"}
+                </div>
+                <div style={{
+                  marginTop: 10, padding: "10px 12px", borderRadius: 8,
+                  background: needsApproval ? theme.yellowBg : theme.surface,
+                  border: `1px solid ${needsApproval ? theme.yellowBorder : theme.border}`,
+                  fontSize: 12, color: needsApproval ? theme.yellow : theme.textMuted, lineHeight: 1.6, wordBreak: "keep-all",
+                }}>
+                  {needsApproval
+                    ? "⚠️ 이틀 이상 대여를 선택하셨습니다. 이 경우 담당자(교학팀)의 승인이 필요하며, 승인 전에는 수령이 제한될 수 있습니다."
+                    : "💡 권장 대여 기간은 1일(익일 반납)입니다. 이틀 이상 대여를 원하시면 담당자(교학팀)의 승인이 필요합니다."}
                 </div>
               </div>
               <div style={{ marginBottom: 16 }}>
@@ -328,11 +381,12 @@ function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, 
                 <div style={{ fontSize: 12, color: theme.textMuted, marginBottom: 8 }}>대여 요약</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                   <Badge color="accent">{eq.icon} {eq.name}{eq.isStand ? ` x${standQty}` : ""}</Badge>
+                  <Badge color="blue">대여: {rentDate}</Badge>
                   <Badge color="blue">반납: {returnDate}</Badge>
                 </div>
               </Card>
-              <Button size="lg" onClick={handleSubmit} disabled={submitting || isWeekend(returnDate) || isPast(returnDate) || !phone.trim()} style={{ width: "100%", justifyContent: "center" }}>
-                {submitting ? "신청 중..." : isPast(returnDate) ? "과거 날짜는 반납일로 설정 불가" : isWeekend(returnDate) ? "주말은 반납일로 설정 불가" : !phone.trim() ? "연락처를 입력해주세요" : `${eq.name} 대여 신청`}
+              <Button size="lg" onClick={handleSubmit} disabled={submitting || isWeekend(rentDate) || isWeekend(returnDate) || isPast(rentDate) || isPast(returnDate) || returnBeforeRent || !phone.trim()} style={{ width: "100%", justifyContent: "center" }}>
+                {submitting ? "신청 중..." : (isPast(rentDate) || isPast(returnDate)) ? "과거 날짜는 설정 불가" : (isWeekend(rentDate) || isWeekend(returnDate)) ? "주말은 대여/반납일로 설정 불가" : returnBeforeRent ? "반납일은 대여일 이후로 선택" : !phone.trim() ? "연락처를 입력해주세요" : `${eq.name} 대여 신청`}
               </Button>
             </div>
           </div>

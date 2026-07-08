@@ -127,7 +127,7 @@ function WorkerDashboard({ reservations, updateReservations, equipRentals, updat
         sendEmailNotification?.({
           to: rental.studentEmail,
           subject: `[물품 준비 완료] ${rental.studentName}님 · ${rental.items.map(i => i.name).join(", ")}`,
-          body: `물품 대여 준비가 완료되었습니다.\n\n- 물품: ${rental.items.map(i => `${i.icon} ${i.name}`).join(", ")}\n- 반납 예정일: ${rental.returnDate || "미정"}\n\n교학팀에서 수령해주세요.\n\n※※※ 신분증 또는 학생증 지참 무조건 해주셔야합니다 ※※※`,
+          body: `물품 대여 준비가 완료되었습니다.\n\n- 물품: ${rental.items.map(i => `${i.icon} ${i.name}`).join(", ")}\n- 대여 예정일: ${rental.rentDate || "미정"}\n- 반납 예정일: ${rental.returnDate || "미정"}\n\n교학팀에서 수령해주세요.\n\n※※※ 신분증 또는 학생증 지참 무조건 해주셔야합니다 ※※※`,
         });
       }
     }
@@ -144,6 +144,28 @@ function WorkerDashboard({ reservations, updateReservations, equipRentals, updat
         return { ...eq, available: Math.min(eq.total, (eq.available || 0) + returnQty) };
       }));
       addLog(`[반납완료] ${rental.studentName}의 기구 반납 완료 → ${rental.items.map(i => i.name).join(", ")}`, "equipment");
+    }
+  };
+
+  const rejectEquipRental = (rentalId) => {
+    const rental = equipRentals.find(r => r.id === rentalId);
+    updateEquipRentals(prev => prev.map(r => r.id === rentalId ? { ...r, status: "rejected", rejectedAt: ts() } : r));
+    if (rental) {
+      // 신청 시 차감했던 재고 복구
+      setEquipmentDB?.(prev => prev.map(eq => {
+        const matched = rental.items?.find(i => i.id === eq.id);
+        if (!matched) return eq;
+        const returnQty = matched.qty || 1;
+        return { ...eq, available: Math.min(eq.total, (eq.available || 0) + returnQty) };
+      }));
+      addLog(`[대여반려] ${rental.studentName}(${rental.studentId})의 기구대여 반려 → ${rental.items.map(i => i.name).join(", ")}`, "equipment");
+      if (rental.studentEmail) {
+        sendEmailNotification?.({
+          to: rental.studentEmail,
+          subject: `[물품 대여 반려] ${rental.studentName}님 · ${rental.items.map(i => i.name).join(", ")}`,
+          body: `요청하신 물품 대여가 반려되었습니다.\n\n- 물품: ${rental.items.map(i => `${i.icon} ${i.name}`).join(", ")}\n- 대여 예정일: ${rental.rentDate || "미정"}\n- 반납 예정일: ${rental.returnDate || "미정"}\n\n자세한 사항은 교학팀으로 문의해주세요.`,
+        });
+      }
     }
   };
 
@@ -304,7 +326,7 @@ function WorkerDashboard({ reservations, updateReservations, equipRentals, updat
                             </div>
                           </div>
                           <div style={{ fontSize: 13, color: theme.textMuted, marginBottom: 6 }}>{rental.items.map(i => `${i.icon} ${i.name}${i.qty > 1 ? ` x${i.qty}` : ""}`).join("  ·  ")}</div>
-                          <div style={{ fontSize: 12, color: theme.textDim, marginBottom: 8 }}>반납: {rental.returnDate}</div>
+                          <div style={{ fontSize: 12, color: theme.textDim, marginBottom: 8 }}>{rental.rentDate ? `대여: ${rental.rentDate} · ` : ""}반납: {rental.returnDate}</div>
                           {rental.status === "ready" && (
                             <div style={{ marginBottom: 8 }}>
                               <div style={{ fontSize: 11, fontWeight: 600, color: theme.textMuted, marginBottom: 6 }}>반납 체크리스트</div>
@@ -320,6 +342,7 @@ function WorkerDashboard({ reservations, updateReservations, equipRentals, updat
                           )}
                           <div style={{ display: "flex", gap: 8 }}>
                             {rental.status === "pending_pickup" && <Button size="sm" onClick={() => markEquipReady(rental.id)}>✓ 준비 완료</Button>}
+                            {rental.status === "pending_pickup" && <Button size="sm" variant="ghost" onClick={() => rejectEquipRental(rental.id)} style={{ color: theme.red }}>✕ 반려</Button>}
                             {rental.status === "ready" && <Button size="sm" variant="success" onClick={() => markEquipReturned(rental.id)} disabled={(rental.returnChecklist || []).some(i => !i.done)}>↩ 반납 처리</Button>}
                           </div>
                         </div>
@@ -627,19 +650,57 @@ function WorkerDashboard({ reservations, updateReservations, equipRentals, updat
         {todayRes.length === 0 ? (
           <Empty icon={<Icons.calendar size={28} />} text="승인된 예약이 없습니다" />
         ) : (
-          todayRes.map((res, i) => (
-            <div key={res.id} style={{ padding: "14px 18px", borderBottom: i < todayRes.length - 1 ? `1px solid ${theme.border}` : "none" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <span style={{ fontSize: 14, fontWeight: 600 }}>{res.studentName}</span>
-                  <span style={{ fontSize: 12, color: theme.textMuted, marginLeft: 8 }}>{res.studentDept}</span>
+          (() => {
+            // 예약을 날짜별로 그룹화하고, 가장 빠른 예약일이 상단에 오도록 오름차순 정렬
+            const groups = todayRes.reduce((acc, res) => {
+              const key = res.date || "미정";
+              (acc[key] = acc[key] || []).push(res);
+              return acc;
+            }, {});
+            const sortedDates = Object.keys(groups).sort((a, b) => {
+              if (a === "미정") return 1;
+              if (b === "미정") return -1;
+              return a.localeCompare(b);
+            });
+            const dayMap = ["일", "월", "화", "수", "목", "금", "토"];
+            return sortedDates.map((date, gi) => {
+              const items = groups[date];
+              const label = date === "미정"
+                ? "날짜 미정"
+                : `${date} (${dayMap[new Date(date + "T00:00:00").getDay()]})`;
+              return (
+                <div key={date}>
+                  {/* 날짜 헤더 */}
+                  <div style={{
+                    padding: "8px 18px", background: theme.surface,
+                    borderTop: gi > 0 ? `1px solid ${theme.border}` : "none",
+                    borderBottom: `1px solid ${theme.border}`,
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    position: "sticky", top: 0, zIndex: 1,
+                  }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: date === today ? theme.accent : theme.textMuted, fontFamily: theme.fontMono }}>
+                      {date === today ? `오늘 · ${label}` : label}
+                    </span>
+                    <span style={{ fontSize: 11, color: theme.textDim }}>{items.length}건</span>
+                  </div>
+                  {/* 해당 날짜의 예약 목록 */}
+                  {items.map((res, i) => (
+                    <div key={res.id} style={{ padding: "14px 18px", borderBottom: i < items.length - 1 ? `1px solid ${theme.border}` : "none" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div>
+                          <span style={{ fontSize: 14, fontWeight: 600 }}>{res.studentName}</span>
+                          <span style={{ fontSize: 12, color: theme.textMuted, marginLeft: 8 }}>{res.studentDept}</span>
+                        </div>
+                        <Badge color="green">{res.autoApproved ? "자동승인" : "승인"}</Badge>
+                      </div>
+                      <div style={{ fontSize: 13, color: theme.textMuted, marginTop: 4 }}>{res.roomName} · {res.slotLabels?.join(", ")}</div>
+                      {res.purpose && <div style={{ fontSize: 12, color: theme.textDim, marginTop: 2 }}>목적: {res.purpose}</div>}
+                    </div>
+                  ))}
                 </div>
-                <Badge color="green">{res.autoApproved ? "자동승인" : "승인"}</Badge>
-              </div>
-              <div style={{ fontSize: 13, color: theme.textMuted, marginTop: 4 }}>{res.roomName} · {res.date} · {res.slotLabels?.join(", ")}</div>
-              {res.purpose && <div style={{ fontSize: 12, color: theme.textDim, marginTop: 2 }}>목적: {res.purpose}</div>}
-            </div>
-          ))
+              );
+            });
+          })()
         )}
       </Card>
     </div>

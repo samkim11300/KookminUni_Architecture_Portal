@@ -102,3 +102,23 @@ export const DEFAULT_EQUIPMENT_DB = EDITABLE.equipment;
 export const TIME_SLOTS = EDITABLE.timeSlots;
 export const DEFAULT_WORKERS = EDITABLE.workers;
 export const ADMIN_ACCOUNT = EDITABLE.adminAccount;
+
+// ─── 개발용 시험 학생 계정 ──────────────────────────────────────
+// npm run dev(개발 서버)에서만 동작하며, 프로덕션 빌드에는 포함되지 않습니다.
+// (LoginPage에서 import.meta.env.DEV 로 게이트 처리)
+// 구글시트 명단 조회 없이 이 학번/이름/비밀번호로 바로 로그인됩니다.
+export const TEST_STUDENT = {
+  id: "0000000",
+  name: "테스트",
+  pin: "0000",
+  profile: {
+    id: "0000000",
+    name: "테스트",
+    dept: "테스트전공",
+    year: 3,
+    safetyTrained: true,
+    safetyDate: null,
+    warningCount: 0,
+    email: "test@kookmin.ac.kr",
+  },
+};
