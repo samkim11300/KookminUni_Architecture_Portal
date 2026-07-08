@@ -71,7 +71,7 @@ function RoomReservation({ user, reservations, updateReservations, addLog, addNo
       const slotLabels = selectedSlots.map(sid => TIME_SLOTS.find(t => t.id === sid)?.label).filter(Boolean).sort();
       const isCADRoom = selectedRoom === "604";
       const res = {
-        id: uid(), type: "room", studentId: user.id, studentName: user.name, studentDept: user.dept,
+        id: uid(), type: "room", studentId: user.id, studentName: user.name, studentDept: user.dept, studentEmail: user.email || "",
         roomId: selectedRoom, roomName: room.name, date: selectedDate, slots: selectedSlots, slotLabels,
         purpose: purpose || "개인 작업", members: parseInt(members) || 1,
         status: isCADRoom ? "pending" : "approved", createdAt: ts(), autoApproved: !isCADRoom,

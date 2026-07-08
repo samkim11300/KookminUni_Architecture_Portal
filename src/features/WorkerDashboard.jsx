@@ -175,11 +175,13 @@ function WorkerDashboard({ reservations, updateReservations, equipRentals, updat
     if (!window.confirm(`${res.studentName}님의 ${res.roomName} 예약을 반려하시겠습니까?\n(${res.date} ${res.slotLabels?.join(", ")})`)) return;
     updateReservations(prev => prev.map(r => r.id === resId ? { ...r, status: "rejected", rejectedAt: ts() } : r));
     addLog(`[예약반려] ${res.studentName}(${res.studentId}) → ${res.roomName} 예약 반려 | ${res.date} ${res.slotLabels?.join(", ")}`, "reservation");
-    sendEmailNotification?.({
-      to: res.studentEmail || undefined,
-      subject: `[국민대 건축대학] ${res.roomName} 예약 반려`,
-      body: `${res.studentName}님의 ${res.roomName} 예약이 반려되었습니다.\n\n- 날짜: ${res.date}\n- 시간: ${res.slotLabels?.join(", ")}\n\n예약 시간에 방문하지 않아 반려 처리되었습니다. 자세한 사항은 교학팀으로 문의해주세요.`,
-    });
+    if (res.studentEmail) {
+      sendEmailNotification?.({
+        to: res.studentEmail,
+        subject: `[국민대 건축대학] ${res.roomName} 예약 반려 안내`,
+        body: `${res.studentName}님의 ${res.roomName} 예약이 반려되었습니다.\n\n- 날짜: ${res.date}\n- 시간: ${res.slotLabels?.join(", ")}\n\n예약 시간에 방문하지 않아 반려 처리되었습니다. 자세한 사항은 교학팀으로 문의해주세요.`,
+      });
+    }
   };
 
   const toggleChecklistItem = (rentalId, idx) => {
