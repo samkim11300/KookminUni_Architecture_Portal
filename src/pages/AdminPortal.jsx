@@ -31,10 +31,7 @@ function AdminPortal({ onLogout, logs, addLog, updateLogs, sheetConfig, updateSh
   const [warnForm, setWarnForm] = useState({ studentId: "", name: "", reason: "" });
   const [blkForm, setBlkForm] = useState({ studentId: "", name: "", reason: "" });
   const [pblkForm, setPblkForm] = useState({ studentId: "", name: "", reason: "" });
-  const [certModal, setCertModal] = useState(null);
-  const [certFileData, setCertFileData] = useState(null);
-  const [certFileLoading, setCertFileLoading] = useState(false);
-  const [approving, setApproving] = useState(false);
+
   const [logSelectMode, setLogSelectMode] = useState(false);
   const [selectedLogIds, setSelectedLogIds] = useState(new Set());
   const [logDeleteConfirm, setLogDeleteConfirm] = useState(false);
@@ -50,21 +47,7 @@ function AdminPortal({ onLogout, logs, addLog, updateLogs, sheetConfig, updateSh
   const [bannerSubtitle, setBannerSubtitle] = useState(bannerText?.subtitle || "");
   const [bannerSaved, setBannerSaved] = useState(false);
 
-  const openCertModal = async (cert) => {
-    setCertModal(cert);
-    setCertFileData(null);
-    setCertFileLoading(true);
-    let fileData = null;
-    if (cert.storagePath) {
-      fileData = await certificateStorage.getSignedUrl(cert.storagePath);
-    } else if (cert.driveFileId) {
-      fileData = `https://drive.google.com/file/d/${cert.driveFileId}/view`;
-    } else {
-      fileData = cert.data || await store.get(`certFile_${cert.studentId}`);
-    }
-    setCertFileData(fileData);
-    setCertFileLoading(false);
-  };
+
   // 학생증 사진 변경 필터 상태
   const [idPhotoFilter, setIdPhotoFilter] = useState("all");
   // 물품 관리 상태
@@ -85,11 +68,7 @@ function AdminPortal({ onLogout, logs, addLog, updateLogs, sheetConfig, updateSh
   };
 
 
-  // 이수증 개수 계산 (승인 완료된 항목 제외)
-  const pendingCertificates = certificates
-    ? Object.fromEntries(Object.entries(certificates).filter(([_, c]) => !c.approved))
-    : {};
-  const certificateCount = Object.keys(pendingCertificates).length;
+
 
   // 학생증 사진 변경 문의 (hasIdPhoto === true)
   const idPhotoInquiries = (inquiries || []).filter(i => i.hasIdPhoto);
@@ -209,8 +188,6 @@ function AdminPortal({ onLogout, logs, addLog, updateLogs, sheetConfig, updateSh
           columns: EDITABLE.safetySheet?.columns || {},
         };
         try {
-          // text/plain을 사용해야 CORS preflight(OPTIONS)가 발생하지 않아
-          // Google Apps Script에 POST가 실제로 전달됨
           const res = await fetch(url, {
             method: "POST",
             headers: { "Content-Type": "text/plain;charset=UTF-8" },
@@ -242,7 +219,6 @@ function AdminPortal({ onLogout, logs, addLog, updateLogs, sheetConfig, updateSh
           }
         }
       }
-      // driveFileId가 없는 레거시 데이터만 Drive에 업로드
       if (!cert.driveFileId) {
         const driveUrl = EDITABLE.driveUpload?.url?.trim();
         if (driveUrl) {
@@ -296,18 +272,15 @@ function AdminPortal({ onLogout, logs, addLog, updateLogs, sheetConfig, updateSh
 
       updateCertificates(prev => {
         const next = { ...prev };
-        // PIN은 로그인 검증용으로 유지, 나머지 파일 데이터만 제거
         next[cert.studentId] = { pin: password || cert.pin, approved: true };
         return next;
       });
-      // 레거시 파일 정리 (driveFileId 방식은 Drive 파일 유지)
       if (cert.storagePath) {
         await certificateStorage.remove(cert.storagePath);
       } else if (!cert.driveFileId) {
         store.set(`certFile_${cert.studentId}`, null);
       }
 
-      // 승인 이메일 발송
       if (cert.studentEmail && sendEmailNotification) {
         sendEmailNotification({
           to: cert.studentEmail,
@@ -331,9 +304,7 @@ function AdminPortal({ onLogout, logs, addLog, updateLogs, sheetConfig, updateSh
       delete next[cert.studentId];
       return next;
     });
-    // 파일 삭제
     if (cert.driveFileId) {
-      // 구글 드라이브에서 파일 삭제
       const driveUrl = EDITABLE.driveUpload?.url?.trim();
       if (driveUrl) {
         try {
@@ -356,7 +327,6 @@ function AdminPortal({ onLogout, logs, addLog, updateLogs, sheetConfig, updateSh
       store.set(`certFile_${cert.studentId}`, null);
     }
     addLog(`[관리자] 이수증 반려: ${cert.studentName}(${cert.studentId})${reason ? ` | 사유: ${reason}` : ""}`, "admin");
-    // 학생 이메일로 반려 알림 발송
     if (cert.studentEmail) {
       sendEmailNotification({
         to: cert.studentEmail,
@@ -396,7 +366,7 @@ function AdminPortal({ onLogout, logs, addLog, updateLogs, sheetConfig, updateSh
           tabs={[
             { id: "roomToggle", label: "실기실 ON/OFF", icon: <Icons.power size={15} /> },
             { id: "discipline", label: "경고/블랙리스트", icon: <Icons.alert size={15} /> },
-            { id: "certificates", label: "이수증 관리", icon: <Icons.file size={15} />, badge: certificateCount, badgeCircle: true },
+
             { id: "idPhoto", label: "학생증 사진 변경", icon: <Icons.upload size={15} />, badge: pendingIdPhotoCount, badgeCircle: true },
             { id: "equipment", label: "물품 관리", icon: <Icons.tool size={15} /> },
             { id: "forms", label: "양식함 관리", icon: <Icons.clipboard size={15} /> },
@@ -876,53 +846,7 @@ function AdminPortal({ onLogout, logs, addLog, updateLogs, sheetConfig, updateSh
         </div>
       )}
 
-      {tab === "certificates" && (
-        <div>
-          <SectionTitle icon={<Icons.file size={16} color={theme.blue} />}>이수증 관리</SectionTitle>
-          <Card>
-            <div style={{ fontSize: 12, color: theme.textMuted, marginBottom: 14, lineHeight: 1.6 }}>
-              학생들이 업로드한 안전교육이수증을 확인하고 관리합니다.
-            </div>
-            {!Object.keys(pendingCertificates).length ? (
-              <Empty icon={<Icons.file size={28} />} text="업로드된 이수증이 없습니다" />
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {Object.entries(pendingCertificates).map(([studentId, cert]) => (
-                  <Card
-                    key={studentId}
-                    style={{ background: theme.surface, padding: 14, cursor: "pointer" }}
-                    hover
-                    onClick={() => openCertModal(cert)}
-                  >
-                    <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
-                      <div style={{ padding: 12, background: theme.blueBg, borderRadius: theme.radiusSm, border: `1px solid ${theme.blueBorder}` }}>
-                        <Icons.file size={24} color={theme.blue} />
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}>
-                          <span style={{ fontSize: 14, fontWeight: 700, color: theme.text }}>{cert.studentName || studentId}</span>
-                          <Badge color="blue">이수증</Badge>
-                        </div>
-                        <div style={{ fontSize: 12, color: theme.textMuted, marginBottom: 6 }}>
-                          학번: {studentId} · 파일명: {cert.fileName}
-                        </div>
-                        <div style={{ display: "flex", gap: 12, fontSize: 11, color: theme.textDim }}>
-                          <span>크기: {(cert.fileSize / 1024).toFixed(1)} KB</span>
-                          <span>•</span>
-                          <span>업로드: {new Date(cert.uploadDate).toLocaleString("ko-KR")}</span>
-                        </div>
-                      </div>
-                      <div style={{ fontSize: 11, color: theme.blue, fontWeight: 600 }}>
-                        클릭하여 확인 →
-                      </div>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </Card>
-        </div>
-      )}
+
 
       {tab === "idPhoto" && (
         <div className="fade-in" style={{ paddingTop: 24 }}>
@@ -1209,184 +1133,7 @@ function AdminPortal({ onLogout, logs, addLog, updateLogs, sheetConfig, updateSh
         </div>
       )}
 
-      {/* Certificate Preview Modal */}
-      {certModal && (
-        <div style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: "transparent",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          zIndex: 9999,
-          padding: 20
-        }}
-          onClick={() => setCertModal(null)}
-        >
-          <div style={{
-            background: theme.card,
-            borderRadius: theme.radius,
-            border: "none",
-            boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
-            maxWidth: 900,
-            width: "100%",
-            maxHeight: "90vh",
-            overflow: "auto",
-            padding: 24
-          }}
-            onClick={e => e.stopPropagation()}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <div>
-                <div style={{ fontSize: 16, fontWeight: 700, color: theme.text, marginBottom: 4 }}>
-                  안전교육이수증 확인
-                </div>
-                <div style={{ fontSize: 13, color: theme.textMuted }}>
-                  {certModal.studentName || "이름 없음"} ({certModal.studentId})
-                </div>
-              </div>
-              <button
-                onClick={() => setCertModal(null)}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: theme.textMuted,
-                  cursor: "pointer",
-                  fontSize: 24,
-                  padding: 4
-                }}
-              >
-                <Icons.x size={20} />
-              </button>
-            </div>
 
-            <div style={{
-              background: theme.surface,
-              borderRadius: theme.radiusSm,
-              padding: 16,
-              marginBottom: 20,
-              maxHeight: "60vh",
-              overflow: "auto",
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center"
-            }}>
-              {certFileLoading ? (
-                <div style={{ textAlign: "center", padding: 40, color: theme.textMuted }}>
-                  <div style={{ fontSize: 14 }}>파일 로딩 중...</div>
-                </div>
-              ) : !certFileData ? (
-                <div style={{ textAlign: "center", padding: 40, color: theme.textMuted }}>
-                  <Icons.file size={48} style={{ opacity: 0.5, marginBottom: 12 }} />
-                  <div style={{ fontSize: 14 }}>파일을 불러올 수 없습니다</div>
-                </div>
-              ) : certModal.driveFileId ? (
-                <div style={{ textAlign: "center", padding: 40 }}>
-                  <Icons.file size={48} color={theme.blue} style={{ marginBottom: 16, opacity: 0.8 }} />
-                  <div style={{ fontSize: 14, color: theme.text, fontWeight: 600, marginBottom: 8 }}>
-                    Google Drive에 저장된 파일입니다
-                  </div>
-                  <div style={{ fontSize: 12, color: theme.textMuted, marginBottom: 20 }}>
-                    아래 버튼을 클릭하면 새 탭에서 파일을 확인할 수 있습니다
-                  </div>
-                  <button
-                    onClick={() => window.open(certFileData, "_blank")}
-                    style={{
-                      display: "inline-flex", alignItems: "center", gap: 8,
-                      padding: "10px 20px", borderRadius: theme.radius,
-                      background: theme.blue, color: "#fff",
-                      border: "none", cursor: "pointer",
-                      fontSize: 14, fontWeight: 600, fontFamily: theme.font,
-                    }}
-                  >
-                    <Icons.external size={16} /> Google Drive에서 열기
-                  </button>
-                </div>
-              ) : certModal.fileType?.startsWith("image/") ? (
-                <img
-                  src={certFileData}
-                  alt="이수증"
-                  style={{ maxWidth: "100%", maxHeight: "60vh", objectFit: "contain" }}
-                />
-              ) : certModal.fileType === "application/pdf" ? (
-                <iframe
-                  src={certFileData}
-                  style={{ width: "100%", height: "60vh", border: "none" }}
-                  title="PDF 이수증"
-                />
-              ) : (
-                <div style={{ textAlign: "center", padding: 40, color: theme.textMuted }}>
-                  <Icons.file size={48} style={{ opacity: 0.5, marginBottom: 12 }} />
-                  <div style={{ fontSize: 14 }}>미리보기를 지원하지 않는 파일 형식입니다</div>
-                  <div style={{ fontSize: 12, marginTop: 8 }}>{certModal.fileName}</div>
-                </div>
-              )}
-            </div>
-
-            <div style={{ display: "flex", gap: 12, fontSize: 12, color: theme.textDim, marginBottom: 20, padding: "12px 16px", background: theme.surface, borderRadius: theme.radiusSm }}>
-              <span>파일명: {certModal.fileName}</span>
-              <span>•</span>
-              <span>크기: {(certModal.fileSize / 1024).toFixed(1)} KB</span>
-              <span>•</span>
-              <span>업로드: {new Date(certModal.uploadDate).toLocaleString("ko-KR")}</span>
-            </div>
-
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  if (!certFileData) return;
-                  if (certModal.driveFileId) {
-                    window.open(`https://drive.google.com/uc?id=${certModal.driveFileId}&export=download`, "_blank");
-                  } else if (certModal.storagePath) {
-                    fetch(certFileData)
-                      .then(res => res.blob())
-                      .then(blob => {
-                        const url = URL.createObjectURL(blob);
-                        const link = document.createElement("a");
-                        link.href = url;
-                        link.download = certModal.fileName;
-                        link.click();
-                        URL.revokeObjectURL(url);
-                      });
-                  } else {
-                    const link = document.createElement("a");
-                    link.href = certFileData;
-                    link.download = certModal.fileName;
-                    link.click();
-                  }
-                }}
-              >
-                <Icons.download size={16} /> 다운로드
-              </Button>
-              <Button
-                variant="success"
-                onClick={() => approveCertificate(certModal)}
-                disabled={approving}
-              >
-                <Icons.check size={16} /> {approving ? "처리 중..." : "이상없음 (승인)"}
-              </Button>
-              <Button
-                variant="danger"
-                onClick={() => {
-                  const reason = window.prompt(`${certModal.studentName}(${certModal.studentId})의 이수증을 반려합니다.\n반려 사유를 입력해주세요:`, "");
-                  if (reason !== null) {
-                    rejectCertificate(certModal, reason);
-                  }
-                }}
-              >
-                <Icons.x size={16} /> 반려
-              </Button>
-              <Button variant="ghost" onClick={() => setCertModal(null)}>
-                닫기
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
     </>
   );

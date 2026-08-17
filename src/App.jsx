@@ -1340,6 +1340,7 @@ export default function App() {
             inquiries={inquiries} updateInquiries={updateInquiries}
             printRequests={printRequests} updatePrintRequests={updatePrintRequests} refreshPrintRequests={refreshPrintRequests}
             archivePrintsToDrive={archivePrintsToDrive}
+            certificates={certificates} updateCertificates={updateCertificates}
             visitCount={visitCount}
             analyticsData={analyticsData}
             dailyVisits={dailyVisits}
