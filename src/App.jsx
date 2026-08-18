@@ -586,6 +586,66 @@ export default function App() {
     });
   }, [persist]);
 
+  // ─── 학기 초기화 ─────────────────────────────────────────────────
+  const onResetSemester = useCallback(async () => {
+    const results = { certificates: false, pins: false, warnings: false, blacklist: false, sheet: false };
+    try {
+      // 1. certificates 초기화
+      updateCertificates({});
+      results.certificates = true;
+
+      // 2. studentPin_* 키 삭제
+      try {
+        const pinKeys = await store.listByPrefix("studentPin_");
+        if (pinKeys.length > 0) {
+          await Promise.all(pinKeys.map(k => store.set(k.name || k, null)));
+        }
+        results.pins = true;
+      } catch (e) {
+        console.error("studentPin 삭제 실패:", e);
+      }
+
+      // 3. warnings 초기화
+      updateWarnings({});
+      results.warnings = true;
+
+      // 4. blacklist 초기화
+      updateBlacklist({});
+      results.blacklist = true;
+
+      // 5. 구글시트 안전교육이수 데이터 초기화
+      const sheetUrl = EDITABLE.safetySheet?.url?.trim();
+      if (sheetUrl) {
+        try {
+          const res = await fetch(sheetUrl, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain;charset=UTF-8" },
+            body: JSON.stringify({
+              action: "clear_safety_sheet",
+              key: EDITABLE.apiKey,
+              sheetName: EDITABLE.safetySheet?.sheetName || "",
+            }),
+          });
+          const text = await res.text();
+          let result = null;
+          try { result = JSON.parse(text); } catch { }
+          if (result?.error) {
+            console.error("구글시트 초기화 실패:", result.error);
+          } else {
+            results.sheet = true;
+          }
+        } catch (err) {
+          console.error("구글시트 초기화 요청 실패:", err);
+        }
+      }
+
+      return results;
+    } catch (err) {
+      console.error("학기 초기화 중 오류:", err);
+      return results;
+    }
+  }, [updateCertificates, updateWarnings, updateBlacklist]);
+
   const updatePrintRequests = useCallback((updater) => {
     setPrintRequests(prev => {
       const prevArr = Array.isArray(prev) ? prev : [];
@@ -1341,6 +1401,7 @@ export default function App() {
             printRequests={printRequests} updatePrintRequests={updatePrintRequests} refreshPrintRequests={refreshPrintRequests}
             archivePrintsToDrive={archivePrintsToDrive}
             certificates={certificates} updateCertificates={updateCertificates}
+            onResetSemester={onResetSemester}
             visitCount={visitCount}
             analyticsData={analyticsData}
             dailyVisits={dailyVisits}

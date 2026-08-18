@@ -66,7 +66,7 @@ export const EDITABLE = {
     { id: "001", name: "근로학생", shift: "통합", username: "worker1", passwordHash: import.meta.env.VITE_WORKER1_PASSWORD_HASH },
   ],
   safetySheet: {
-    url: "https://script.google.com/macros/s/AKfycbw5gNesXsFsYEHaTOsG50Al_S3y-PLeEEm_3apr2DKO1fQDsHN4Cwh-7wCslKsUvKVR_A/exec",
+    url: "https://script.google.com/macros/s/AKfycbxC0ae42Ff1rNMY8YddRnOkUA-Ee20nEeV1U4CKjFuDDTxTcpOk0lH7dYgEyu_eajeJgA/exec",
     sheetName: "시트1",
     columns: {
       studentId: "학번",
