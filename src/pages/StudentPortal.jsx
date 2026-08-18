@@ -17,7 +17,7 @@ const PRINT_TYPE_LABELS = {
   COLOR: "컬러",
 };
 
-function StudentPortal({ user, onLogout, reservations, updateReservations, equipRentals, updateEquipRentals, equipmentDB, setEquipmentDB, categoryOrder, addLog, addNotification, syncReservationToSheet, syncPrintToSheet, syncEquipToSheet, sendEmailNotification, warnings, printBlacklist, inquiries, updateInquiries, printRequests, updatePrintRequests, roomStatus, isMobile, isDark, toggleDark }) {
+function StudentPortal({ user, onLogout, reservations, updateReservations, equipRentals, updateEquipRentals, equipmentDB, setEquipmentDB, categoryOrder, addLog, addNotification, syncReservationToSheet, syncPrintToSheet, syncEquipToSheet, sendEmailNotification, warnings, printBlacklist, inquiries, updateInquiries, printRequests, updatePrintRequests, roomStatus, printNotice, isMobile, isDark, toggleDark }) {
   const [tab, setTabRaw] = useState("dashboard");
   const [dashboardDetail, setDashboardDetail] = useState(null);
   const [detailSubmitting, setDetailSubmitting] = useState(false);
@@ -423,10 +423,10 @@ function StudentPortal({ user, onLogout, reservations, updateReservations, equip
             />
           )}
           {tab === "equipment" && (
-            <EquipmentRental user={user} equipRentals={equipRentals} updateEquipRentals={updateEquipRentals} equipmentDB={equipmentDB} setEquipmentDB={setEquipmentDB} categoryOrder={categoryOrder} addLog={addLog} addNotification={addNotification} syncEquipToSheet={syncEquipToSheet} sendEmailNotification={sendEmailNotification} isMobile={isMobile} />
+            <EquipmentRental user={user} equipRentals={equipRentals} updateEquipRentals={updateEquipRentals} equipmentDB={equipmentDB} setEquipmentDB={setEquipmentDB} categoryOrder={categoryOrder} addLog={addLog} addNotification={addNotification} syncEquipToSheet={syncEquipToSheet} sendEmailNotification={sendEmailNotification} isMobile={isMobile} onNavigateTab={setTab} />
           )}
           {tab === "print" && (
-            <PrintRequest user={user} printRequests={myPrintRequests} updatePrintRequests={updatePrintRequests} addLog={addLog} addNotification={addNotification} syncPrintToSheet={syncPrintToSheet} sendEmailNotification={sendEmailNotification} isMobile={isMobile} />
+            <PrintRequest user={user} printRequests={myPrintRequests} updatePrintRequests={updatePrintRequests} addLog={addLog} addNotification={addNotification} syncPrintToSheet={syncPrintToSheet} sendEmailNotification={sendEmailNotification} printNotice={printNotice} isMobile={isMobile} />
           )}
           {tab === "history" && (
             <StudentHistory user={user} reservations={reservations} equipRentals={equipRentals} updateReservations={updateReservations} updateEquipRentals={updateEquipRentals} sendEmailNotification={sendEmailNotification} addLog={addLog} addNotification={addNotification} />

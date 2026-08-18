@@ -8,7 +8,7 @@ import { Badge, Card, Button, Input, SectionTitle, Empty, Divider } from "../com
 function WorkerDashboard({ reservations, updateReservations, equipRentals, updateEquipRentals, equipmentDB, setEquipmentDB, notifications, markNotifRead, markAllNotifsRead, unreadCount, addLog, workerName, sendEmailNotification, printRequests, visitCount, dailyVisits, isMobile }) {
   const [showNotifPopup, setShowNotifPopup] = useState(false);
   const [expandedChecklist, setExpandedChecklist] = useState(null);
-  const [analyticsOpen, setAnalyticsOpen] = useState(false);
+  const [analyticsOpen, setAnalyticsOpen] = useState(true);
   const [visitorStartDate, setVisitorStartDate] = useState("");
   const [visitorEndDate, setVisitorEndDate] = useState("");
   const todayRes = reservations.filter(r => r.status === "approved");
@@ -257,136 +257,7 @@ function WorkerDashboard({ reservations, updateReservations, equipRentals, updat
         </div>
       </div>
 
-      {/* ═══ 퇴근 전 체크리스트 ═══ */}
-      <Card style={{ padding: 0, marginBottom: 20, overflow: "hidden" }}>
-        {/* 체크리스트 헤더 */}
-        <div style={{ padding: "16px 20px", borderBottom: `1px solid ${theme.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <Icons.shield size={18} color={doneCount === checklistItems.length ? theme.green : theme.accent} />
-            <span style={{ fontSize: 16, fontWeight: 800, color: theme.text }}>퇴근 전 체크리스트</span>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ width: 80, height: 6, borderRadius: 3, background: theme.surface, overflow: "hidden" }}>
-              <div style={{ height: "100%", width: `${(doneCount / checklistItems.length) * 100}%`, background: doneCount === checklistItems.length ? theme.green : theme.accent, borderRadius: 3, transition: "width 0.3s" }} />
-            </div>
-            <span style={{ fontSize: 13, fontWeight: 700, color: doneCount === checklistItems.length ? theme.green : theme.accent, fontFamily: theme.fontMono }}>{doneCount}/{checklistItems.length}</span>
-          </div>
-        </div>
 
-        {/* 체크리스트 항목들 */}
-        {checklistItems.map((item, idx) => (
-          <div key={item.key}>
-            {/* 항목 행 */}
-            <div
-              onClick={() => setExpandedChecklist(expandedChecklist === item.key ? null : item.key)}
-              style={{
-                padding: "14px 20px", cursor: "pointer", transition: "background 0.15s",
-                borderBottom: idx < checklistItems.length - 1 || expandedChecklist === item.key ? `1px solid ${theme.border}` : "none",
-                display: "flex", alignItems: "center", gap: 12,
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = theme.surfaceHover}
-              onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-            >
-              {/* 체크 아이콘 */}
-              <div style={{
-                width: 28, height: 28, borderRadius: "50%", flexShrink: 0,
-                background: item.done ? theme.greenBg : theme.surface,
-                border: `2px solid ${item.done ? theme.green : theme.border}`,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                transition: "all 0.2s"
-              }}>
-                {item.done && <Icons.check size={14} color={theme.green} />}
-              </div>
-              {/* 아이콘 + 라벨 */}
-              <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
-                <span style={{ color: item.done ? theme.green : theme.textMuted }}>{item.icon}</span>
-                <span style={{ fontSize: 14, fontWeight: 600, color: item.done ? theme.green : theme.text, textDecoration: item.done ? "line-through" : "none", opacity: item.done ? 0.7 : 1 }}>{item.label}</span>
-              </div>
-              {/* 카운트 뱃지 */}
-              {item.done ? (
-                <Badge color="green">완료</Badge>
-              ) : (
-                <Badge color={item.count > 0 ? "yellow" : "dim"}>{item.count}건 남음</Badge>
-              )}
-              {/* 펼침 화살표 */}
-              <span style={{ fontSize: 11, color: theme.textDim, transition: "transform 0.2s", transform: expandedChecklist === item.key ? "rotate(180deg)" : "rotate(0deg)" }}>▼</span>
-            </div>
-
-            {/* 펼침 콘텐츠 */}
-            <div style={{
-              maxHeight: expandedChecklist === item.key ? 600 : 0,
-              overflow: "hidden",
-              transition: "max-height 0.3s ease-in-out",
-              background: "rgba(0,0,0,0.15)",
-            }}>
-              <div style={{ padding: "12px 20px", maxHeight: 350, overflowY: "auto" }}>
-                {/* 1) 물품 수령/반납 */}
-                {item.key === "rental" && (
-                  activeRentals.length === 0 ? (
-                    <div style={{ textAlign: "center", padding: "20px 0", color: theme.textDim, fontSize: 13 }}>
-                      <Icons.check size={24} color={theme.green} /><div style={{ marginTop: 8 }}>진행 중인 대여가 없습니다</div>
-                    </div>
-                  ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                      {activeRentals.map(rental => (
-                        <div key={rental.id} style={{ padding: 14, background: theme.card, borderRadius: theme.radiusSm, border: `1px solid ${theme.border}` }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                            <div style={{ fontSize: 14, fontWeight: 700, color: theme.text }}>
-                              {rental.studentName} <span style={{ color: theme.textMuted, fontWeight: 400 }}>({rental.studentId})</span>
-                              {rental.phone && <span style={{ fontSize: 12, color: theme.textMuted, fontWeight: 400, marginLeft: 8 }}>📞 {rental.phone}</span>}
-                            </div>
-                            <div style={{ display: "flex", gap: 6 }}>
-                              {rental.returnDate && rental.returnDate < today && <Badge color="red">연체</Badge>}
-                              <Badge color={rental.status === "ready" ? "blue" : "yellow"}>{rental.status === "ready" ? "준비완료" : "준비 필요"}</Badge>
-                            </div>
-                          </div>
-                          <div style={{ fontSize: 13, color: theme.textMuted, marginBottom: 6 }}>{rental.items.map(i => `${i.icon} ${i.name}${i.qty > 1 ? ` x${i.qty}` : ""}`).join("  ·  ")}</div>
-                          <div style={{ fontSize: 12, color: theme.textDim, marginBottom: 8 }}>{rental.rentDate ? `대여: ${rental.rentDate} · ` : ""}반납: {rental.returnDate}</div>
-                          {rental.status === "ready" && (
-                            <div style={{ marginBottom: 8 }}>
-                              <div style={{ fontSize: 11, fontWeight: 600, color: theme.textMuted, marginBottom: 6 }}>반납 체크리스트</div>
-                              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                                {(rental.returnChecklist || EDITABLE.equipmentReturnChecklist.map(label => ({ label, done: false }))).map((cl, cidx) => (
-                                  <label key={cidx} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: theme.textMuted, cursor: "pointer" }}>
-                                    <input type="checkbox" checked={!!cl.done} onChange={() => toggleChecklistItem(rental.id, cidx)} />
-                                    {cl.label}
-                                  </label>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                          <div style={{ display: "flex", gap: 8 }}>
-                            {rental.status === "pending_pickup" && <Button size="sm" onClick={() => markEquipReady(rental.id)}>✓ 준비 완료</Button>}
-                            {rental.status === "pending_pickup" && <Button size="sm" variant="ghost" onClick={() => rejectEquipRental(rental.id)} style={{ color: theme.red }}>✕ 반려</Button>}
-                            {rental.status === "ready" && <Button size="sm" variant="success" onClick={() => markEquipReturned(rental.id)} disabled={(rental.returnChecklist || []).some(i => !i.done)}>↩ 반납 처리</Button>}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )
-                )}
-
-                {/* 2) 출력 대기 */}
-                {item.key === "print" && (
-                  pendingPrints === 0 ? (
-                    <div style={{ textAlign: "center", padding: "20px 0", color: theme.textDim, fontSize: 13 }}>
-                      <Icons.check size={24} color={theme.green} /><div style={{ marginTop: 8 }}>대기 중인 출력이 없습니다</div>
-                    </div>
-                  ) : (
-                    <div style={{ padding: 14, background: theme.card, borderRadius: theme.radiusSm, border: `1px solid ${theme.yellowBorder}` }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: theme.yellow }}>
-                        <Icons.alert size={16} />
-                        <span style={{ fontWeight: 600 }}>{pendingPrints}건의 출력 요청이 대기 중입니다.</span>
-                      </div>
-                      <div style={{ fontSize: 12, color: theme.textMuted, marginTop: 6 }}>출력 대기 탭에서 처리해주세요.</div>
-                    </div>
-                  )
-                )}
-              </div>
-            </div>
-          </div>
-        ))}
-      </Card>
 
       {/* ═══ 간단 요약 카드 ═══ */}
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(3, 1fr)", gap: 10, marginBottom: 20 }}>
@@ -403,6 +274,267 @@ function WorkerDashboard({ reservations, updateReservations, equipRentals, updat
             <div style={{ fontSize: 24, fontWeight: 800, color: stat.color, fontFamily: theme.fontMono }}>{stat.value}</div>
           </Card>
         ))}
+      </div>
+
+      {/* ═══ 2컬럼 그리드 레이아웃 (좌: 퇴근 전 체크리스트, 우: 승인대기 & 활성 예약) ═══ */}
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 20, marginBottom: 20, alignItems: "stretch" }}>
+        {/* 왼쪽 컬럼: 퇴근 전 체크리스트 */}
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          <Card style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column", height: "100%" }}>
+            {/* 체크리스트 헤더 */}
+            <div style={{ padding: "16px 20px", borderBottom: `1px solid ${theme.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <Icons.shield size={18} color={doneCount === checklistItems.length ? theme.green : theme.accent} />
+                <span style={{ fontSize: 16, fontWeight: 800, color: theme.text }}>퇴근 전 체크리스트</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ width: 80, height: 6, borderRadius: 3, background: theme.surface, overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${(doneCount / checklistItems.length) * 100}%`, background: doneCount === checklistItems.length ? theme.green : theme.accent, borderRadius: 3, transition: "width 0.3s" }} />
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 700, color: doneCount === checklistItems.length ? theme.green : theme.accent, fontFamily: theme.fontMono }}>{doneCount}/{checklistItems.length}</span>
+              </div>
+            </div>
+
+            {/* 체크리스트 항목들 */}
+            <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+              {checklistItems.map((item, idx) => (
+                <div key={item.key} style={{ flex: expandedChecklist ? "0 0 auto" : 1, display: "flex", flexDirection: "column", justifyContent: "center", borderBottom: idx < checklistItems.length - 1 || expandedChecklist === item.key ? `1px solid ${theme.border}` : "none" }}>
+                  {/* 항목 행 */}
+                  <div
+                    onClick={() => setExpandedChecklist(expandedChecklist === item.key ? null : item.key)}
+                    style={{
+                      padding: "16px 20px", cursor: "pointer", transition: "background 0.15s",
+                      display: "flex", alignItems: "center", gap: 12, width: "100%",
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = theme.surfaceHover}
+                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                  >
+                    {/* 체크 아이콘 */}
+                    <div style={{
+                      width: 28, height: 28, borderRadius: "50%", flexShrink: 0,
+                      background: item.done ? theme.greenBg : theme.surface,
+                      border: `2px solid ${item.done ? theme.green : theme.border}`,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      transition: "all 0.2s"
+                    }}>
+                      {item.done && <Icons.check size={14} color={theme.green} />}
+                    </div>
+                    {/* 아이콘 + 라벨 */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
+                      <span style={{ color: item.done ? theme.green : theme.textMuted }}>{item.icon}</span>
+                      <span style={{ fontSize: 14, fontWeight: 600, color: item.done ? theme.green : theme.text, textDecoration: item.done ? "line-through" : "none", opacity: item.done ? 0.7 : 1 }}>{item.label}</span>
+                    </div>
+                    {/* 카운트 뱃지 */}
+                    {item.done ? (
+                      <Badge color="green">완료</Badge>
+                    ) : (
+                      <Badge color={item.count > 0 ? "yellow" : "dim"}>{item.count}건 남음</Badge>
+                    )}
+                    {/* 펼침 화살표 */}
+                    <span style={{ fontSize: 11, color: theme.textDim, transition: "transform 0.2s", transform: expandedChecklist === item.key ? "rotate(180deg)" : "rotate(0deg)" }}>▼</span>
+                  </div>
+
+                  {/* 펼침 콘텐츠 */}
+                  <div style={{
+                    maxHeight: expandedChecklist === item.key ? 600 : 0,
+                    overflow: "hidden",
+                    transition: "max-height 0.3s ease-in-out",
+                    background: "rgba(0,0,0,0.15)",
+                  }}>
+                    <div style={{ padding: "12px 20px", maxHeight: 350, overflowY: "auto" }}>
+                      {/* 1) 물품 수령/반납 */}
+                      {item.key === "rental" && (
+                        activeRentals.length === 0 ? (
+                          <div style={{ textAlign: "center", padding: "20px 0", color: theme.textDim, fontSize: 13 }}>
+                            <Icons.check size={24} color={theme.green} /><div style={{ marginTop: 8 }}>진행 중인 대여가 없습니다</div>
+                          </div>
+                        ) : (
+                          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                            {activeRentals.map(rental => (
+                              <div key={rental.id} style={{ padding: 14, background: theme.card, borderRadius: theme.radiusSm, border: `1px solid ${theme.border}` }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                                  <div style={{ fontSize: 14, fontWeight: 700, color: theme.text }}>
+                                    {rental.studentName} <span style={{ color: theme.textMuted, fontWeight: 400 }}>({rental.studentId})</span>
+                                    {rental.phone && <span style={{ fontSize: 12, color: theme.textMuted, fontWeight: 400, marginLeft: 8 }}>📞 {rental.phone}</span>}
+                                  </div>
+                                  <div style={{ display: "flex", gap: 6 }}>
+                                    {rental.returnDate && rental.returnDate < today && <Badge color="red">연체</Badge>}
+                                    <Badge color={rental.status === "ready" ? "blue" : "yellow"}>{rental.status === "ready" ? "준비완료" : "준비 필요"}</Badge>
+                                  </div>
+                                </div>
+                                <div style={{ fontSize: 13, color: theme.textMuted, marginBottom: 6 }}>{rental.items.map(i => `${i.icon} ${i.name}${i.qty > 1 ? ` x${i.qty}` : ""}`).join("  ·  ")}</div>
+                                <div style={{ fontSize: 12, color: theme.textDim, marginBottom: 8 }}>{rental.rentDate ? `대여: ${rental.rentDate} · ` : ""}반납: {rental.returnDate}</div>
+                                {rental.status === "ready" && (
+                                  <div style={{ marginBottom: 8 }}>
+                                    <div style={{ fontSize: 11, fontWeight: 600, color: theme.textMuted, marginBottom: 6 }}>반납 체크리스트</div>
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                      {(rental.returnChecklist || EDITABLE.equipmentReturnChecklist.map(label => ({ label, done: false }))).map((cl, cidx) => (
+                                        <label key={cidx} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: theme.textMuted, cursor: "pointer" }}>
+                                          <input type="checkbox" checked={!!cl.done} onChange={() => toggleChecklistItem(rental.id, cidx)} />
+                                          {cl.label}
+                                        </label>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                <div style={{ display: "flex", gap: 8 }}>
+                                  {rental.status === "pending_pickup" && <Button size="sm" onClick={() => markEquipReady(rental.id)}>✓ 준비 완료</Button>}
+                                  {rental.status === "pending_pickup" && <Button size="sm" variant="ghost" onClick={() => rejectEquipRental(rental.id)} style={{ color: theme.red }}>✕ 반려</Button>}
+                                  {rental.status === "ready" && <Button size="sm" variant="success" onClick={() => markEquipReturned(rental.id)} disabled={(rental.returnChecklist || []).some(i => !i.done)}>↩ 반납 처리</Button>}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )
+                      )}
+
+                      {/* 2) 출력 대기 */}
+                      {item.key === "print" && (
+                        pendingPrints === 0 ? (
+                          <div style={{ textAlign: "center", padding: "20px 0", color: theme.textDim, fontSize: 13 }}>
+                            <Icons.check size={24} color={theme.green} /><div style={{ marginTop: 8 }}>대기 중인 출력이 없습니다</div>
+                          </div>
+                        ) : (
+                          <div style={{ padding: 14, background: theme.card, borderRadius: theme.radiusSm, border: `1px solid ${theme.yellowBorder}` }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: theme.yellow }}>
+                              <Icons.alert size={16} />
+                              <span style={{ fontWeight: 600 }}>{pendingPrints}건의 출력 요청이 대기 중입니다.</span>
+                            </div>
+                            <div style={{ fontSize: 12, color: theme.textMuted, marginTop: 6 }}>출력 대기 탭에서 처리해주세요.</div>
+                          </div>
+                        )
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+
+        {/* 오른쪽 컬럼: 승인 대기 & 활성 예약 */}
+        <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+          {/* 승인 대기 예약 (캐드실) */}
+          {pendingRes.length > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <Card style={{ padding: 0, overflow: "hidden", borderColor: theme.yellowBorder }}>
+                <div style={{ padding: "16px 20px", borderBottom: `1px solid ${theme.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", background: theme.yellowBg }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <Icons.alert size={18} color={theme.yellow} />
+                    <span style={{ fontSize: 16, fontWeight: 800, color: theme.text }}>승인 대기 예약</span>
+                  </div>
+                  <Badge color="yellow">{pendingRes.length}건</Badge>
+                </div>
+                <div style={{ maxHeight: 300, overflowY: "auto" }}>
+                  {pendingRes.map((res, i) => (
+                    <div key={res.id} style={{ padding: "14px 18px", borderBottom: i < pendingRes.length - 1 ? `1px solid ${theme.border}` : "none", background: theme.yellowBg }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div>
+                          <span style={{ fontSize: 14, fontWeight: 600 }}>{res.studentName}</span>
+                          <span style={{ fontSize: 12, color: theme.textMuted, marginLeft: 8 }}>{res.studentDept}</span>
+                        </div>
+                        <Badge color="yellow">승인 대기</Badge>
+                      </div>
+                      <div style={{ fontSize: 13, color: theme.textMuted, marginTop: 4 }}>{res.roomName} · {res.date} · {res.slotLabels?.join(", ")}</div>
+                      {res.purpose && <div style={{ fontSize: 12, color: theme.textDim, marginTop: 2 }}>목적: {res.purpose}</div>}
+                      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                        <Button size="sm" onClick={() => {
+                          updateReservations(prev => prev.map(r => r.id === res.id ? { ...r, status: "approved" } : r));
+                          addLog(`[승인] ${res.studentName}(${res.studentId}) → ${res.roomName} 예약 승인 | ${res.date} ${res.slotLabels?.join(", ")}`, "reservation");
+                          sendEmailNotification?.({
+                            to: res.studentEmail || undefined,
+                            subject: `[국민대 건축대학] 캐드실 예약 승인`,
+                            body: `${res.studentName}님의 캐드실 예약이 승인되었습니다.\n\n- 날짜: ${res.date}\n- 시간: ${res.slotLabels?.join(", ")}\n- 목적: ${res.purpose}\n\n※※※ 신분증 또는 학생증 지참 무조건 해주셔야합니다 ※※※`,
+                          });
+                        }}>✓ 승인</Button>
+                        <Button size="sm" variant="ghost" onClick={() => {
+                          updateReservations(prev => prev.map(r => r.id === res.id ? { ...r, status: "rejected" } : r));
+                          addLog(`[거절] ${res.studentName}(${res.studentId}) → ${res.roomName} 예약 거절 | ${res.date} ${res.slotLabels?.join(", ")}`, "reservation");
+                          sendEmailNotification?.({
+                            to: res.studentEmail || undefined,
+                            subject: `[국민대 건축대학] 캐드실 예약 거절`,
+                            body: `${res.studentName}님의 캐드실 예약이 거절되었습니다.\n\n- 날짜: ${res.date}\n- 시간: ${res.slotLabels?.join(", ")}\n\n문의사항은 교학팀으로 연락해주세요.`,
+                          });
+                        }} style={{ color: theme.red }}>✕ 거절</Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </div>
+          )}
+
+          {/* 활성 예약 */}
+          <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+            <Card style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column", height: "100%" }}>
+              <div style={{ padding: "16px 20px", borderBottom: `1px solid ${theme.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <Icons.calendar size={18} color={theme.accent} />
+                  <span style={{ fontSize: 16, fontWeight: 800, color: theme.text }}>활성 예약</span>
+                </div>
+                <Badge color="green">{todayRes.length}건</Badge>
+              </div>
+
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: todayRes.length === 0 ? "center" : "flex-start", maxHeight: 320, minHeight: 180, overflowY: "auto" }}>
+                {todayRes.length === 0 ? (
+                  <Empty icon={<Icons.calendar size={28} />} text="승인된 예약이 없습니다" />
+                ) : (
+                  (() => {
+                    const groups = todayRes.reduce((acc, res) => {
+                      const key = res.date || "미정";
+                      (acc[key] = acc[key] || []).push(res);
+                      return acc;
+                    }, {});
+                    const sortedDates = Object.keys(groups).sort((a, b) => {
+                      if (a === "미정") return 1;
+                      if (b === "미정") return -1;
+                      return a.localeCompare(b);
+                    });
+                    const dayMap = ["일", "월", "화", "수", "목", "금", "토"];
+                    return sortedDates.map((date, gi) => {
+                      const items = groups[date];
+                      const label = date === "미정"
+                        ? "날짜 미정"
+                        : `${date} (${dayMap[new Date(date + "T00:00:00").getDay()]})`;
+                      return (
+                        <div key={date}>
+                          <div style={{
+                            padding: "8px 18px", background: theme.surface,
+                            borderTop: gi > 0 ? `1px solid ${theme.border}` : "none",
+                            borderBottom: `1px solid ${theme.border}`,
+                            display: "flex", alignItems: "center", justifyContent: "space-between",
+                            position: "sticky", top: 0, zIndex: 1,
+                          }}>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: date === today ? theme.accent : theme.textMuted, fontFamily: theme.fontMono }}>
+                              {date === today ? `오늘 · ${label}` : label}
+                            </span>
+                            <span style={{ fontSize: 11, color: theme.textDim }}>{items.length}건</span>
+                          </div>
+                          {items.map((res, i) => (
+                            <div key={res.id} style={{ padding: "14px 18px", borderBottom: i < items.length - 1 ? `1px solid ${theme.border}` : "none" }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                <div>
+                                  <span style={{ fontSize: 14, fontWeight: 600 }}>{res.studentName}</span>
+                                  <span style={{ fontSize: 12, color: theme.textMuted, marginLeft: 8 }}>{res.studentDept}</span>
+                                </div>
+                                <Badge color="green">{res.autoApproved ? "자동승인" : "승인"}</Badge>
+                              </div>
+                              <div style={{ fontSize: 13, color: theme.textMuted, marginTop: 4 }}>{res.roomName} · {res.slotLabels?.join(", ")}</div>
+                              {res.purpose && <div style={{ fontSize: 12, color: theme.textDim, marginTop: 2 }}>목적: {res.purpose}</div>}
+                              <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                                <Button size="sm" variant="ghost" onClick={() => rejectReservation(res.id)} style={{ color: theme.red }}>✕ 반려</Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    });
+                  })()
+                )}
+              </div>
+            </Card>
+          </div>
+        </div>
       </div>
 
       {/* ═══ Analytics (접을 수 있음) ═══ */}
@@ -504,7 +636,6 @@ function WorkerDashboard({ reservations, updateReservations, equipRentals, updat
               </div>
             </div>
             {(() => {
-              // 날짜 구간이 선택되면 해당 구간, 아니면 이번 주 월~일
               const useCustomRange = visitorStartDate && visitorEndDate && visitorStartDate <= visitorEndDate;
               let rangeDates, rangeLabels;
               if (useCustomRange) {
@@ -546,26 +677,22 @@ function WorkerDashboard({ reservations, updateReservations, equipRentals, updat
                     <span>합계: <strong style={{ color: theme.green }}>{totalVisitors}명</strong></span>
                   </div>
                   <div style={{ position: "relative", height: 160 }}>
-                    {/* Y축 라벨 */}
                     <div style={{ position: "absolute", left: 0, top: 0, bottom: 24, display: "flex", flexDirection: "column", justifyContent: "space-between", fontSize: 10, color: theme.textDim, width: 24, textAlign: "right" }}>
                       <span>{yMax}</span>
                       <span>{Math.round(yMax / 2)}</span>
                       <span>0</span>
                     </div>
-                    {/* 그래프 영역 */}
                     <div style={{ marginLeft: 28, height: "calc(100% - 24px)", position: "relative" }}>
                       {[0, 0.5, 1].map((ratio, i) => (
                         <div key={i} style={{ position: "absolute", left: 0, right: 0, top: `${ratio * 100}%`, borderBottom: `1px ${i === 2 ? "solid" : "dashed"} ${theme.border}`, opacity: 0.5 }} />
                       ))}
                       {showAsBar ? (
-                        /* 바 차트 (15일 이상) */
                         <div style={{ display: "flex", alignItems: "flex-end", height: "100%", gap: 1 }}>
                           {rangeStats.map((d, i) => (
                             <div key={i} title={`${d.date}: ${d.count}명`} style={{ flex: 1, height: `${Math.max((d.count / yMax) * 100, 2)}%`, background: d.date === today ? theme.green : `${theme.green}88`, borderRadius: "2px 2px 0 0", transition: "height 0.3s", minHeight: 2 }} />
                           ))}
                         </div>
                       ) : (
-                        /* 선 그래프 (14일 이하) */
                         <svg width="100%" height="100%" viewBox={`0 0 ${svgW} ${svgH}`} preserveAspectRatio="none" style={{ position: "absolute", top: 0, left: 0 }}>
                           <polygon
                             points={
@@ -601,7 +728,6 @@ function WorkerDashboard({ reservations, updateReservations, equipRentals, updat
                         </svg>
                       )}
                     </div>
-                    {/* X축 라벨 */}
                     <div style={{ display: "flex", marginLeft: 28, marginTop: 6, overflow: "hidden" }}>
                       {rangeStats.map((d, i) => (
                         <span key={i} style={{ flex: 1, textAlign: "center", fontSize: showAsBar ? 9 : 11, fontWeight: d.date === today ? 700 : 400, color: d.date === today ? theme.green : theme.textDim, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -616,111 +742,6 @@ function WorkerDashboard({ reservations, updateReservations, equipRentals, updat
           </Card>
         </div>
       </div>
-
-      {/* ═══ 승인 대기 예약 (캐드실) ═══ */}
-      {pendingRes.length > 0 && (
-        <>
-          <SectionTitle icon={<Icons.alert size={16} color={theme.yellow} />}>승인 대기 예약</SectionTitle>
-          <Card style={{ padding: 0, overflow: "hidden", maxHeight: 350, overflowY: "auto", marginBottom: 20, borderColor: theme.yellowBorder }}>
-            {pendingRes.map((res, i) => (
-              <div key={res.id} style={{ padding: "14px 18px", borderBottom: i < pendingRes.length - 1 ? `1px solid ${theme.border}` : "none", background: theme.yellowBg }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div>
-                    <span style={{ fontSize: 14, fontWeight: 600 }}>{res.studentName}</span>
-                    <span style={{ fontSize: 12, color: theme.textMuted, marginLeft: 8 }}>{res.studentDept}</span>
-                  </div>
-                  <Badge color="yellow">승인 대기</Badge>
-                </div>
-                <div style={{ fontSize: 13, color: theme.textMuted, marginTop: 4 }}>{res.roomName} · {res.date} · {res.slotLabels?.join(", ")}</div>
-                {res.purpose && <div style={{ fontSize: 12, color: theme.textDim, marginTop: 2 }}>목적: {res.purpose}</div>}
-                <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                  <Button size="sm" onClick={() => {
-                    updateReservations(prev => prev.map(r => r.id === res.id ? { ...r, status: "approved" } : r));
-                    addLog(`[승인] ${res.studentName}(${res.studentId}) → ${res.roomName} 예약 승인 | ${res.date} ${res.slotLabels?.join(", ")}`, "reservation");
-                    sendEmailNotification?.({
-                      to: res.studentEmail || undefined,
-                      subject: `[국민대 건축대학] 캐드실 예약 승인`,
-                      body: `${res.studentName}님의 캐드실 예약이 승인되었습니다.\n\n- 날짜: ${res.date}\n- 시간: ${res.slotLabels?.join(", ")}\n- 목적: ${res.purpose}\n\n※※※ 신분증 또는 학생증 지참 무조건 해주셔야합니다 ※※※`,
-                    });
-                  }}>✓ 승인</Button>
-                  <Button size="sm" variant="ghost" onClick={() => {
-                    updateReservations(prev => prev.map(r => r.id === res.id ? { ...r, status: "rejected" } : r));
-                    addLog(`[거절] ${res.studentName}(${res.studentId}) → ${res.roomName} 예약 거절 | ${res.date} ${res.slotLabels?.join(", ")}`, "reservation");
-                    sendEmailNotification?.({
-                      to: res.studentEmail || undefined,
-                      subject: `[국민대 건축대학] 캐드실 예약 거절`,
-                      body: `${res.studentName}님의 캐드실 예약이 거절되었습니다.\n\n- 날짜: ${res.date}\n- 시간: ${res.slotLabels?.join(", ")}\n\n문의사항은 교학팀으로 연락해주세요.`,
-                    });
-                  }} style={{ color: theme.red }}>✕ 거절</Button>
-                </div>
-              </div>
-            ))}
-          </Card>
-        </>
-      )}
-
-      {/* ═══ 활성 예약 ═══ */}
-      <SectionTitle icon={<Icons.calendar size={16} color={theme.accent} />}>활성 예약</SectionTitle>
-      <Card style={{ padding: 0, overflow: "hidden", maxHeight: 350, overflowY: "auto" }}>
-        {todayRes.length === 0 ? (
-          <Empty icon={<Icons.calendar size={28} />} text="승인된 예약이 없습니다" />
-        ) : (
-          (() => {
-            // 예약을 날짜별로 그룹화하고, 가장 빠른 예약일이 상단에 오도록 오름차순 정렬
-            const groups = todayRes.reduce((acc, res) => {
-              const key = res.date || "미정";
-              (acc[key] = acc[key] || []).push(res);
-              return acc;
-            }, {});
-            const sortedDates = Object.keys(groups).sort((a, b) => {
-              if (a === "미정") return 1;
-              if (b === "미정") return -1;
-              return a.localeCompare(b);
-            });
-            const dayMap = ["일", "월", "화", "수", "목", "금", "토"];
-            return sortedDates.map((date, gi) => {
-              const items = groups[date];
-              const label = date === "미정"
-                ? "날짜 미정"
-                : `${date} (${dayMap[new Date(date + "T00:00:00").getDay()]})`;
-              return (
-                <div key={date}>
-                  {/* 날짜 헤더 */}
-                  <div style={{
-                    padding: "8px 18px", background: theme.surface,
-                    borderTop: gi > 0 ? `1px solid ${theme.border}` : "none",
-                    borderBottom: `1px solid ${theme.border}`,
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
-                    position: "sticky", top: 0, zIndex: 1,
-                  }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: date === today ? theme.accent : theme.textMuted, fontFamily: theme.fontMono }}>
-                      {date === today ? `오늘 · ${label}` : label}
-                    </span>
-                    <span style={{ fontSize: 11, color: theme.textDim }}>{items.length}건</span>
-                  </div>
-                  {/* 해당 날짜의 예약 목록 */}
-                  {items.map((res, i) => (
-                    <div key={res.id} style={{ padding: "14px 18px", borderBottom: i < items.length - 1 ? `1px solid ${theme.border}` : "none" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <div>
-                          <span style={{ fontSize: 14, fontWeight: 600 }}>{res.studentName}</span>
-                          <span style={{ fontSize: 12, color: theme.textMuted, marginLeft: 8 }}>{res.studentDept}</span>
-                        </div>
-                        <Badge color="green">{res.autoApproved ? "자동승인" : "승인"}</Badge>
-                      </div>
-                      <div style={{ fontSize: 13, color: theme.textMuted, marginTop: 4 }}>{res.roomName} · {res.slotLabels?.join(", ")}</div>
-                      {res.purpose && <div style={{ fontSize: 12, color: theme.textDim, marginTop: 2 }}>목적: {res.purpose}</div>}
-                      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                        <Button size="sm" variant="ghost" onClick={() => rejectReservation(res.id)} style={{ color: theme.red }}>✕ 반려</Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              );
-            });
-          })()
-        )}
-      </Card>
     </div>
   );
 }

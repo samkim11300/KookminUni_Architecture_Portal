@@ -47,7 +47,7 @@ const PRINT_PLUS600_PRICES = {
 
 const KAKAO_BANK_ACCOUNT = "3333-35-7572363 [김경호]"; // 카카오뱅크 계좌번호
 
-function PrintRequest({ user, printRequests, updatePrintRequests, addLog, addNotification, syncPrintToSheet, sendEmailNotification, isMobile }) {
+function PrintRequest({ user, printRequests, updatePrintRequests, addLog, addNotification, syncPrintToSheet, sendEmailNotification, printNotice, isMobile }) {
   const [paperSize, setPaperSize] = useState("A2");
   const [colorMode, setColorMode] = useState("COATED_DRAWING");
   const [copies, setCopies] = useState(1);
@@ -59,6 +59,11 @@ function PrintRequest({ user, printRequests, updatePrintRequests, addLog, addNot
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [emailSentChecked, setEmailSentChecked] = useState(false);
   const paymentFileRef = useRef(null);
+
+  const bankAccount = printNotice?.bankAccount || "카카오뱅크 3333-35-7572363 [김경호]";
+  const operatingHours = printNotice?.operatingHours || "평일 10:00~17:00 (점심시간 12:00~13:00 제외)";
+  const pickupLocation = printNotice?.pickupLocation || "건축대학 출력실 (복지관 6층)";
+  const noticeText = printNotice?.noticeText || "표 기준은 1장 단가이며, +600은 추가 600mm 길이 기준입니다.";
 
   const priceKey = `${paperSize}_${colorMode}`;
   const unitPrice = PRINT_PRICES[priceKey] || 0;
@@ -276,10 +281,10 @@ function PrintRequest({ user, printRequests, updatePrintRequests, addLog, addNot
         </div>
 
         <div style={{ fontSize: 12, color: theme.textMuted, lineHeight: 1.6 }}>
-          💳 <strong>입금 계좌:</strong> 카카오뱅크 {KAKAO_BANK_ACCOUNT}<br />
-          🕒 <strong>운영시간:</strong> 평일 10:00~17:00 (점심시간 12:00~13:00 제외)<br />
-          📍 <strong>수령장소:</strong> 건축대학 출력실 (복지관 6층)<br />
-          ℹ️ <strong>안내:</strong> 표 기준은 1장 단가이며, <code>+600</code>은 추가 600mm 길이 기준입니다.
+          💳 <strong>입금 계좌:</strong> {bankAccount}<br />
+          🕒 <strong>운영시간:</strong> {operatingHours}<br />
+          📍 <strong>수령장소:</strong> {pickupLocation}<br />
+          ℹ️ <strong>안내:</strong> {noticeText}
         </div>
         <div style={{ marginTop: 10, fontSize: 12, color: theme.textMuted }}>
           <strong>+600mm 추가금(개당):</strong>{" "}
@@ -496,7 +501,7 @@ function PrintRequest({ user, printRequests, updatePrintRequests, addLog, addNot
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: theme.textMuted, marginBottom: 8 }}>입금 완료 캡처 <span style={{ color: theme.red }}>*</span></div>
           <div style={{ fontSize: 11, color: theme.yellow, marginBottom: 8, padding: "8px 12px", background: theme.yellowBg, borderRadius: 6 }}>
-            💡 카카오뱅크 {KAKAO_BANK_ACCOUNT}로 {totalPrice.toLocaleString()}원을 입금 후 캡처해주세요
+            💡 {bankAccount}로 {totalPrice.toLocaleString()}원을 입금 후 캡처해주세요
           </div>
           <input type="file" ref={paymentFileRef} onChange={handlePaymentUpload} accept=".jpg,.jpeg,.png" style={{ display: "none" }} />
           <button onClick={() => paymentFileRef.current?.click()} style={{

@@ -63,7 +63,7 @@ export const EDITABLE = {
     { id: "07", label: "15:00–16:00", start: 15 }, { id: "08", label: "16:00–17:00", start: 16 },
   ],
   workers: [
-    { id: "001", name: "근로학생", shift: "통합", username: "worker1", passwordHash: import.meta.env.VITE_WORKER1_PASSWORD_HASH },
+    { id: "001", name: "근로학생", shift: "통합", username: "worker1", passwordHash: import.meta.env.VITE_WORKER1_PASSWORD_HASH || "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4" },
   ],
   safetySheet: {
     url: "https://script.google.com/macros/s/AKfycbxC0ae42Ff1rNMY8YddRnOkUA-Ee20nEeV1U4CKjFuDDTxTcpOk0lH7dYgEyu_eajeJgA/exec",
@@ -91,7 +91,7 @@ export const EDITABLE = {
     gasUrl: "https://script.google.com/macros/s/AKfycbwlbhqqOVL78FpI2AgnlIyXJGpbqzZaAkPXwa5hIl2aL7QJp-ckmbTXE4YsMyeE5UuG/exec",
     folderName: "Portal_완료된 출력물 모음",
   },
-  adminAccount: { username: "admin", passwordHash: import.meta.env.VITE_ADMIN_PASSWORD_HASH, name: "관리자" },
+  adminAccount: { username: "admin", passwordHash: import.meta.env.VITE_ADMIN_PASSWORD_HASH || "ac9689e2272427085e35b9d3e3e8bed88cb3434828b43b86fc0596cad4c6e270", name: "관리자" },
   apiKey: import.meta.env.VITE_GAS_API_KEY,
 };
 

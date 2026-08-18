@@ -10,8 +10,9 @@ import WorkerDashboard from "../features/WorkerDashboard";
 import PrintManagement from "../features/PrintManagement";
 import InquiriesPanel from "../features/InquiriesPanel";
 import LogViewer from "../features/LogViewer";
+import EquipmentManagement from "../features/EquipmentManagement";
 
-function WorkerPortal({ user, onLogout, reservations, updateReservations, equipRentals, updateEquipRentals, equipmentDB, setEquipmentDB, logs, addLog, notifications, markNotifRead, markAllNotifsRead, unreadCount, sendEmailNotification, inquiries, updateInquiries, printRequests, updatePrintRequests, refreshPrintRequests, archivePrintsToDrive, certificates, updateCertificates, onResetSemester, visitCount, analyticsData, dailyVisits, isMobile, isDark, toggleDark }) {
+function WorkerPortal({ user, onLogout, reservations, updateReservations, equipRentals, updateEquipRentals, equipmentDB, setEquipmentDB, categoryOrder, setCategoryOrder, logs, addLog, notifications, markNotifRead, markAllNotifsRead, unreadCount, sendEmailNotification, inquiries, updateInquiries, printRequests, updatePrintRequests, refreshPrintRequests, archivePrintsToDrive, certificates, updateCertificates, onResetSemester, visitCount, analyticsData, dailyVisits, isMobile, isDark, toggleDark }) {
   const [tab, setTabRaw] = useState("dashboard");
   const safePrintRequests = Array.isArray(printRequests) ? printRequests : [];
   const setTab = useCallback((newTab) => {
@@ -68,6 +69,12 @@ function WorkerPortal({ user, onLogout, reservations, updateReservations, equipR
   const approveCertificate = async (cert) => {
     setApproving(true);
     try {
+      // pin이 cert에 없으면 store에서 직접 조회
+      let password = cert.pin || "";
+      if (!password) {
+        const savedPin = await store.get(`studentPin_${cert.studentId}`);
+        if (savedPin) password = savedPin;
+      }
       const url = EDITABLE.safetySheet?.url?.trim();
       if (url) {
         const payload = {
@@ -78,7 +85,7 @@ function WorkerPortal({ user, onLogout, reservations, updateReservations, equipR
           studentYear: cert.studentYear || "",
           studentMajor: cert.studentMajor || "",
           studentEmail: cert.studentEmail || "",
-          password: cert.pin || "",
+          password: password ? String(password) : "",
           sheetName: EDITABLE.safetySheet?.sheetName || "",
           columns: EDITABLE.safetySheet?.columns || {},
         };
@@ -104,7 +111,7 @@ function WorkerPortal({ user, onLogout, reservations, updateReservations, equipR
             studentYear: cert.studentYear || "",
             studentMajor: cert.studentMajor || "",
             studentEmail: cert.studentEmail || "",
-            password: cert.pin || "",
+            password: password ? String(password) : "",
             sheetName: EDITABLE.safetySheet?.sheetName || "",
           });
           try {
@@ -168,7 +175,7 @@ function WorkerPortal({ user, onLogout, reservations, updateReservations, equipR
 
       updateCertificates(prev => {
         const next = { ...prev };
-        next[cert.studentId] = { pin: cert.pin, approved: true };
+        next[cert.studentId] = { pin: password || cert.pin, approved: true };
         return next;
       });
       if (cert.storagePath) {
@@ -264,6 +271,7 @@ function WorkerPortal({ user, onLogout, reservations, updateReservations, equipR
         <Tabs
           tabs={[
             { id: "dashboard", label: "대시보드", icon: <Icons.home size={15} />, badge: unreadCount },
+            { id: "equipment", label: "물품 관리", icon: <Icons.tool size={15} /> },
             { id: "certificates", label: "이수증 관리", icon: <Icons.file size={15} />, badge: certificateCount, badgeCircle: true },
             { id: "print", label: "출력 관리", icon: <Icons.file size={15} />, badge: pendingPrints },
             { id: "inquiries", label: "문의", icon: <Icons.file size={15} />, badge: pendingInquiries },
@@ -286,6 +294,10 @@ function WorkerPortal({ user, onLogout, reservations, updateReservations, equipR
           dailyVisits={dailyVisits}
           isMobile={isMobile}
         />
+      )}
+
+      {tab === "equipment" && (
+        <EquipmentManagement equipmentDB={equipmentDB} setEquipmentDB={setEquipmentDB} categoryOrder={categoryOrder} setCategoryOrder={setCategoryOrder} addLog={addLog} workerName={user.name} isMobile={isMobile} />
       )}
 
       {tab === "certificates" && (

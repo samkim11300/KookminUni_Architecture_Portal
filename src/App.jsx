@@ -94,12 +94,21 @@ export default function App() {
   const [bannerText, setBannerText] = useState({
 
   });
+  const DEFAULT_PRINT_NOTICE = useMemo(() => ({
+    bankAccount: "카카오뱅크 3333-35-7572363 [김경호]",
+    operatingHours: "평일 10:00~17:00 (점심시간 12:00~13:00 제외)",
+    pickupLocation: "건축대학 출력실 (복지관 6층)",
+    noticeText: "표 기준은 1장 단가이며, +600은 추가 600mm 길이 기준입니다.",
+  }), []);
+  const [printNotice, setPrintNotice] = useState(DEFAULT_PRINT_NOTICE);
   const [dataLoaded, setDataLoaded] = useState(false);
 
+  const lastLocalEqWrite = useRef(0);
   const [equipmentDB, setEquipmentDBRaw] = useState(DEFAULT_EQUIPMENT_DB);
   const setEquipmentDB = useCallback((updater) => {
     setEquipmentDBRaw(prev => {
       const next = typeof updater === "function" ? updater(prev) : updater;
+      lastLocalEqWrite.current = Date.now();
       store.set("equipmentDB", next);
       supabaseStore.set("portal/equipmentDB", next).catch(() => { });
       return next;
@@ -158,7 +167,7 @@ export default function App() {
         setDataLoaded(true);
 
         // 2단계: 나머지 데이터 백그라운드 로드 (화면 표시 후)
-        const [wk, warn, blk, certs, res, eq, lg, notif, sheet, overdue, inq, prints, visits, visitors, analytics, eqDB, dVisits, savedRoomStatus, savedCategoryOrder, pblk, savedBanner] = await Promise.all([
+        const [wk, warn, blk, certs, res, eq, lg, notif, sheet, overdue, inq, prints, visits, visitors, analytics, eqDB, dVisits, savedRoomStatus, savedCategoryOrder, pblk, savedBanner, savedPrintNotice] = await Promise.all([
           store.get("workers"),
           store.get("warnings"),
           store.get("blacklist"),
@@ -180,6 +189,7 @@ export default function App() {
           store.get("categoryOrder"),
           store.get("printBlacklist"),
           store.get("bannerText"),
+          store.get("printNotice"),
         ]);
         // 근로학생: Supabase를 단일 진실 원천(SSOT)으로 사용
         // password → passwordHash 마이그레이션 헬퍼
@@ -220,6 +230,15 @@ export default function App() {
         } else if (savedBanner) {
           setBannerText(savedBanner);
           supabaseStore.set("portal/bannerText", savedBanner).catch(() => { });
+        }
+        // 출력 안내 및 계좌: Supabase SSOT
+        const serverPrintNotice = await supabaseStore.get("portal/printNotice");
+        if (serverPrintNotice && typeof serverPrintNotice === "object" && serverPrintNotice.bankAccount) {
+          setPrintNotice(serverPrintNotice);
+          store.set("printNotice", serverPrintNotice).catch(() => { });
+        } else if (savedPrintNotice && typeof savedPrintNotice === "object" && savedPrintNotice.bankAccount) {
+          setPrintNotice(savedPrintNotice);
+          supabaseStore.set("portal/printNotice", savedPrintNotice).catch(() => { });
         }
         if (certs) setCertificates(certs);
         if (res) setReservations(res);
@@ -306,11 +325,35 @@ export default function App() {
           setRoomStatus(prev => ({ ...prev, ...savedRoomStatus }));
           supabaseStore.set("portal/roomStatus", { ...roomStatus, ...savedRoomStatus }).catch(() => { });
         }
-        // 물품 DB: Supabase를 단일 진실 원천(SSOT)으로 사용
+        // 물품 DB: Supabase와 로컬 storage 중 최신/병합 데이터 사용
         const serverEqDB = await supabaseStore.get("portal/equipmentDB");
-        const resolvedEqDB = Array.isArray(serverEqDB) && serverEqDB.length > 0
-          ? serverEqDB
-          : Array.isArray(eqDB) && eqDB.length > 0 ? eqDB : null;
+        const parsedServerEq = parseArrayData(serverEqDB);
+        const parsedLocalEq = parseArrayData(eqDB);
+
+        let resolvedEqDB = null;
+        if (parsedServerEq && parsedServerEq.length > 0) {
+          if (parsedLocalEq && parsedLocalEq.length > 0) {
+            // 로컬과 서버의 아이템을 ID 기준 병합 (로컬에만 추가된 아이템이 유실되지 않도록)
+            const map = new Map(parsedServerEq.map(item => [item.id, item]));
+            let hasLocalExtra = false;
+            for (const item of parsedLocalEq) {
+              if (!map.has(item.id)) {
+                map.set(item.id, item);
+                hasLocalExtra = true;
+              }
+            }
+            resolvedEqDB = Array.from(map.values());
+            if (hasLocalExtra) {
+              supabaseStore.set("portal/equipmentDB", resolvedEqDB).catch(() => { });
+              store.set("equipmentDB", resolvedEqDB);
+            }
+          } else {
+            resolvedEqDB = parsedServerEq;
+          }
+        } else if (parsedLocalEq && parsedLocalEq.length > 0) {
+          resolvedEqDB = parsedLocalEq;
+        }
+
         if (resolvedEqDB) {
           // 기본 물품 중 저장 데이터에 없는 항목이 있으면 코드가 업데이트된 것이므로 병합
           const savedIdSet = new Set(resolvedEqDB.map(e => e.id));
@@ -322,12 +365,13 @@ export default function App() {
             supabaseStore.set("portal/equipmentDB", merged).catch(() => { });
           } else {
             setEquipmentDBRaw(resolvedEqDB);
-            if (!serverEqDB) {
+            if (!parsedServerEq || parsedServerEq.length === 0) {
               // 로컬에만 있던 데이터를 Supabase에 동기화
               supabaseStore.set("portal/equipmentDB", resolvedEqDB).catch(() => { });
             }
           }
         } else {
+          setEquipmentDBRaw(DEFAULT_EQUIPMENT_DB);
           store.set("equipmentDB", DEFAULT_EQUIPMENT_DB);
           supabaseStore.set("portal/equipmentDB", DEFAULT_EQUIPMENT_DB).catch(() => { });
         }
@@ -397,9 +441,30 @@ export default function App() {
         const wkItems = parseArrayData(serverWorkers);
         if (wkItems && wkItems.length > 0) setWorkers(wkItems);
 
-        // 물품 DB
-        const eqItems = parseArrayData(serverEqDB);
-        if (eqItems && eqItems.length > 0) setEquipmentDBRaw(eqItems);
+        // 물품 DB (로컬 쓰기 직후 15초 이내는 건너뛰고, 서버 수신 시 로컬 아이템 병합)
+        if (Date.now() - lastLocalEqWrite.current > 15000) {
+          const eqItems = parseArrayData(serverEqDB);
+          if (eqItems && eqItems.length > 0) {
+            setEquipmentDBRaw(prev => {
+              if (!prev || prev.length === 0) return eqItems;
+              // 서버 데이터와 로컬 아이템 병합 (로컬에만 있는 새로 추가된 물품 유지)
+              const map = new Map(eqItems.map(item => [item.id, item]));
+              let extraFound = false;
+              for (const item of prev) {
+                if (!map.has(item.id)) {
+                  map.set(item.id, item);
+                  extraFound = true;
+                }
+              }
+              const merged = Array.from(map.values());
+              if (extraFound) {
+                supabaseStore.set("portal/equipmentDB", merged).catch(() => { });
+                store.set("equipmentDB", merged);
+              }
+              return merged;
+            });
+          }
+        }
 
         // 실기실 ON/OFF
         let roomData = serverRoomStatus;
@@ -582,6 +647,15 @@ export default function App() {
       const next = typeof updater === "function" ? updater(prev) : updater;
       persist("bannerText", next);
       supabaseStore.set("portal/bannerText", next).catch(() => { });
+      return next;
+    });
+  }, [persist]);
+
+  const updatePrintNotice = useCallback((updater) => {
+    setPrintNotice(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      persist("printNotice", next);
+      supabaseStore.set("portal/printNotice", next).catch(() => { });
       return next;
     });
   }, [persist]);
@@ -1383,6 +1457,7 @@ export default function App() {
             printRequests={printRequests}
             updatePrintRequests={updatePrintRequests}
             roomStatus={roomStatus}
+            printNotice={printNotice}
             isMobile={isMobile}
             isDark={isDark} toggleDark={toggleDark}
           />
@@ -1393,6 +1468,7 @@ export default function App() {
             reservations={reservations} updateReservations={updateReservations}
             equipRentals={equipRentals} updateEquipRentals={updateEquipRentals}
             equipmentDB={equipmentDB} setEquipmentDB={setEquipmentDB}
+            categoryOrder={categoryOrder} setCategoryOrder={setCategoryOrder}
             logs={logs} addLog={addLog}
             notifications={notificationsView} markNotifRead={markNotifRead} markAllNotifsRead={markAllNotifsRead}
             unreadCount={unreadCount}
@@ -1428,6 +1504,7 @@ export default function App() {
             roomStatus={roomStatus} updateRoomStatus={updateRoomStatus}
             formFiles={formFiles} updateFormFiles={updateFormFiles}
             bannerText={bannerText} updateBannerText={updateBannerText}
+            printNotice={printNotice} updatePrintNotice={updatePrintNotice}
             isMobile={isMobile}
             isDark={isDark} toggleDark={toggleDark}
           />

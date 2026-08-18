@@ -32,7 +32,7 @@ const nextDay = (dateStr) => {
   return d.toISOString().split("T")[0];
 };
 
-function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, setEquipmentDB, categoryOrder, addLog, addNotification, syncEquipToSheet, isMobile }) {
+function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, setEquipmentDB, categoryOrder, addLog, addNotification, syncEquipToSheet, isMobile, onNavigateTab }) {
   const [selected, setSelected] = useState(null);
   const [rentDate, setRentDate] = useState(nextWeekday(dateStr()));
   const [returnDate, setReturnDate] = useState(nextWeekday(tomorrow()));
@@ -42,6 +42,7 @@ function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, 
   const [showPopup, setShowPopup] = useState(false);
   const [showWeekendPopup, setShowWeekendPopup] = useState(false);
   const [filterCat, setFilterCat] = useState("전체");
+  const [searchQuery, setSearchQuery] = useState("");
   const [standQty, setStandQty] = useState(1);
   const [phone, setPhone] = useState("");
 
@@ -50,7 +51,13 @@ function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, 
     ? [...categoryOrder.filter(c => allCats.includes(c)), ...allCats.filter(c => !categoryOrder.includes(c))]
     : allCats;
   const categories = ["전체", ...orderedCats];
-  const filtered = filterCat === "전체" ? equipmentDB : equipmentDB.filter(e => e.category === filterCat);
+  const filtered = equipmentDB.filter(e => {
+    const matchesCat = filterCat === "전체" || e.category === filterCat;
+    const matchesSearch = !searchQuery.trim() ||
+      e.name.toLowerCase().includes(searchQuery.trim().toLowerCase()) ||
+      (e.category && e.category.toLowerCase().includes(searchQuery.trim().toLowerCase()));
+    return matchesCat && matchesSearch;
+  });
 
   // 권장 반납일 = 대여 예정일의 익일(다음 평일). 이보다 늦으면 이틀 이상 대여로 담당자 승인 필요.
   const recommendedReturn = nextWeekday(nextDay(rentDate));
@@ -129,6 +136,79 @@ function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, 
         <div style={{ width: isMobile ? "100%" : 320, flexShrink: 0 }}>
           <SectionTitle icon={<Icons.tool size={16} color={theme.accent} />}>물품 선택</SectionTitle>
 
+          {/* Search Bar & Notice */}
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+              <div style={{ position: "absolute", left: 12, color: theme.textMuted, display: "flex", alignItems: "center" }}>
+                <Icons.search size={16} />
+              </div>
+              <input
+                type="text"
+                placeholder="물품명 검색..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "9px 32px 9px 36px",
+                  borderRadius: theme.radiusSm || 8,
+                  border: `1px solid ${theme.border}`,
+                  background: theme.surface,
+                  color: theme.text,
+                  fontSize: 13,
+                  fontFamily: theme.font,
+                  outline: "none",
+                  transition: "border-color 0.2s",
+                  boxSizing: "border-box",
+                }}
+                onFocus={e => e.target.style.borderColor = theme.accent}
+                onBlur={e => e.target.style.borderColor = theme.border}
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  style={{
+                    position: "absolute", right: 10, background: "none", border: "none",
+                    color: theme.textMuted, cursor: "pointer", padding: 2, display: "flex", alignItems: "center"
+                  }}
+                >
+                  <Icons.x size={14} />
+                </button>
+              )}
+            </div>
+
+            {/* Inquiry Notice under Search Bar */}
+            <div style={{
+              marginTop: 8,
+              padding: "9px 12px",
+              borderRadius: 8,
+              background: theme.surface,
+              border: `1px solid ${theme.border}`,
+              fontSize: 12,
+              color: theme.textMuted,
+              lineHeight: 1.5,
+              display: "flex",
+              alignItems: "flex-start",
+              gap: 6
+            }}>
+              <Icons.info size={14} color={theme.accent} style={{ marginTop: 2, flexShrink: 0 }} />
+              <span>
+                찾으시는 물품이 없거나 재고가 없는 경우,{" "}
+                <span
+                  onClick={() => onNavigateTab?.("inquiries")}
+                  style={{
+                    color: theme.accent,
+                    fontWeight: 700,
+                    cursor: onNavigateTab ? "pointer" : "default",
+                    textDecoration: "underline"
+                  }}
+                >
+                  문의 내역
+                </span>
+                을 통해 문의해 주세요.
+              </span>
+            </div>
+          </div>
+
           {/* Category Filter */}
           <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
             {categories.map(c => (
@@ -143,29 +223,52 @@ function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, 
 
           {/* Equipment Items */}
           <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: isMobile ? "none" : 450, overflowY: isMobile ? "visible" : "auto", paddingRight: isMobile ? 0 : 4 }}>
-            {filtered.map(eq => {
-              const sel = selected === eq.id;
-              const soldOut = eq.available === 0;
-              return (
-                <Card key={eq.id} onClick={() => !soldOut && toggleEquip(eq.id)} style={{
-                  padding: 14, cursor: soldOut ? "not-allowed" : "pointer", opacity: soldOut ? 0.4 : 1,
-                  borderColor: sel ? theme.accent : theme.border,
-                  background: sel ? theme.accentBg : theme.card,
-                  borderLeft: sel ? `3px solid ${theme.accent}` : `3px solid transparent`,
-                  display: "flex", alignItems: "center", gap: 12,
-                  transition: "all 0.2s",
-                }}>
-                  <div style={{ fontSize: 28, width: 40, textAlign: "center" }}>{eq.icon}</div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: sel ? theme.accent : theme.text }}>{eq.name}</div>
-                    <div style={{ display: "flex", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
-                      <Badge color={eq.available > 0 ? "dim" : "red"} style={{ fontSize: 10 }}>재고 {eq.available}/{eq.total}</Badge>
+            {filtered.length === 0 ? (
+              <Empty
+                icon={<Icons.search size={24} />}
+                text={
+                  searchQuery ? (
+                    <span>
+                      '{searchQuery}' 검색 결과가 없습니다.<br />
+                      찾는 물품이 없으면{" "}
+                      <span
+                        onClick={() => onNavigateTab?.("inquiries")}
+                        style={{ color: theme.accent, cursor: "pointer", textDecoration: "underline", fontWeight: 600 }}
+                      >
+                        문의 내역
+                      </span>
+                      을 통해 문의해 주세요.
+                    </span>
+                  ) : (
+                    "물품이 없습니다."
+                  )
+                }
+              />
+            ) : (
+              filtered.map(eq => {
+                const sel = selected === eq.id;
+                const soldOut = eq.available === 0;
+                return (
+                  <Card key={eq.id} onClick={() => !soldOut && toggleEquip(eq.id)} style={{
+                    padding: 14, cursor: soldOut ? "not-allowed" : "pointer", opacity: soldOut ? 0.4 : 1,
+                    borderColor: sel ? theme.accent : theme.border,
+                    background: sel ? theme.accentBg : theme.card,
+                    borderLeft: sel ? `3px solid ${theme.accent}` : `3px solid transparent`,
+                    display: "flex", alignItems: "center", gap: 12,
+                    transition: "all 0.2s",
+                  }}>
+                    <div style={{ fontSize: 28, width: 40, textAlign: "center" }}>{eq.icon}</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: sel ? theme.accent : theme.text }}>{eq.name}</div>
+                      <div style={{ display: "flex", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
+                        <Badge color={eq.available > 0 ? "dim" : "red"} style={{ fontSize: 10 }}>재고 {eq.available}/{eq.total}</Badge>
+                      </div>
                     </div>
-                  </div>
-                  {sel && <div style={{ color: theme.accent }}><Icons.check size={20} /></div>}
-                </Card>
-              );
-            })}
+                    {sel && <div style={{ color: theme.accent }}><Icons.check size={20} /></div>}
+                  </Card>
+                );
+              })
+            )}
           </div>
         </div>
 
