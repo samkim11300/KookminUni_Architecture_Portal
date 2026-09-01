@@ -1004,39 +1004,49 @@ export default function App() {
   const overdueFlagsRef = useRef(overdueFlags);
   useEffect(() => { overdueFlagsRef.current = overdueFlags; }, [overdueFlags]);
 
+  const equipRentalsRef = useRef(equipRentals);
+  useEffect(() => { equipRentalsRef.current = equipRentals; }, [equipRentals]);
+
+  // 물품 반납 지연 안내: 매일 오전 9시에 연체 건당 한 번만 발송한다.
+  // overdueFlags[r.id] 에는 마지막으로 안내한 날짜(YYYY-MM-DD)를 저장해 같은 날 중복 발송을 막는다.
   useEffect(() => {
-    if (!equipRentals?.length) return;
-    const today = dateStr();
-    const currentFlags = overdueFlagsRef.current;
-    const newFlags = { ...currentFlags };
-    let changed = false;
-    equipRentals.forEach(r => {
-      if (r.status === "returned" || r.status === "cancelled") return;
-      if (r.returnDate && r.returnDate < today) {
-        if (!newFlags[r.id]) {
-          newFlags[r.id] = true;
-          changed = true;
-          addNotification(`⏰ 연체 알림: ${r.studentName} → ${r.items?.map(i => i.name).join(", ")} (반납일 ${r.returnDate})`, "equipment", true);
-          addLog(`[연체] ${r.studentName}(${r.studentId}) → ${r.items?.map(i => i.name).join(", ")} | 반납일 ${r.returnDate}`, "equipment", { studentId: r.studentId });
-          sendEmailNotification({
-            subject: `[국민대 건축대학] 물품 반납 지연 안내`,
-            body: emailTemplate(r.studentName, [
-              "물품 대여 반납 기한이 지났습니다.",
-              "",
-              "[대여 정보]",
-              `- 학생: ${r.studentName} (${r.studentId})`,
-              `- 전공/학년: ${r.studentDept || "-"}`,
-              `- 대여 품목: ${r.items?.map(i => i.name).join(", ")}`,
-              `- 반납 예정일: ${r.returnDate}`,
-              "",
-              "즉시 반납 부탁드립니다.",
-            ].join("\n")),
-          });
-        }
-      }
-    });
-    if (changed) updateOverdueFlags(newFlags);
-  }, [equipRentals, addNotification, addLog, sendEmailNotification, updateOverdueFlags]);
+    const runOverdueCheck = () => {
+      if (new Date().getHours() !== 9) return; // 오전 9시대에만 실행
+      const rentals = equipRentalsRef.current;
+      if (!rentals?.length) return;
+      const today = dateStr();
+      const currentFlags = overdueFlagsRef.current || {};
+      const newFlags = { ...currentFlags };
+      let changed = false;
+      rentals.forEach(r => {
+        if (r.status === "returned" || r.status === "cancelled") return;
+        if (!r.returnDate || r.returnDate >= today) return;
+        if (currentFlags[r.id] === today) return; // 오늘 이미 안내함
+        newFlags[r.id] = today;
+        changed = true;
+        addNotification(`⏰ 연체 알림: ${r.studentName} → ${r.items?.map(i => i.name).join(", ")} (반납일 ${r.returnDate})`, "equipment", true);
+        addLog(`[연체] ${r.studentName}(${r.studentId}) → ${r.items?.map(i => i.name).join(", ")} | 반납일 ${r.returnDate}`, "equipment", { studentId: r.studentId });
+        sendEmailNotification({
+          subject: `[국민대 건축대학] 물품 반납 지연 안내`,
+          body: emailTemplate(r.studentName, [
+            "물품 대여 반납 기한이 지났습니다.",
+            "",
+            "[대여 정보]",
+            `- 학생: ${r.studentName} (${r.studentId})`,
+            `- 전공/학년: ${r.studentDept || "-"}`,
+            `- 대여 품목: ${r.items?.map(i => i.name).join(", ")}`,
+            `- 반납 예정일: ${r.returnDate}`,
+            "",
+            "즉시 반납 부탁드립니다.",
+          ].join("\n")),
+        });
+      });
+      if (changed) updateOverdueFlags(newFlags);
+    };
+    runOverdueCheck();
+    const timerId = setInterval(runOverdueCheck, 60 * 1000);
+    return () => clearInterval(timerId);
+  }, [addNotification, addLog, sendEmailNotification, updateOverdueFlags]);
 
   const syncReservationToSheet = useCallback(async (reservation) => {
     const url = sheetConfig?.reservationWebhookUrl?.trim();
