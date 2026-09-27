@@ -6,7 +6,7 @@ import Icons from "../components/Icons";
 import { Badge, Card, Button, Input, SectionTitle, Empty, AlertPopup } from "../components/ui";
 
 // ─── Print Request (출력 신청) ───────────────────────────────────
-const PRINT_SIZE_OPTIONS = ["A2", "A1", "900x1200", "900x1800", "600x1500"];
+const PRINT_SIZE_OPTIONS = ["A2(420*594)", "A1(594*841)", "900x1200", "900x1800", "600x1500"];
 const PRINT_TYPE_OPTIONS = ["COATED_DRAWING", "COATED_IMAGE", "MATT_IMAGE", "GLOSS_IMAGE"];
 const PRINT_TYPE_LABELS = {
   COATED_DRAWING: "Coated(도면)",
