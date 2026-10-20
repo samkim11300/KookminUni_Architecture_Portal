@@ -5,6 +5,7 @@ import { EDITABLE, ROOMS, DEFAULT_EQUIPMENT_DB, DEFAULT_WORKERS } from "./consta
 import theme, { darkColors, lightColors } from "./constants/theme";
 import { uid, ts, dateStr, ACTIVE_PORTAL_SESSION_KEY, emailTemplate, sha256 } from "./utils/helpers";
 import store from "./utils/storage";
+import { verifyStudentInSheet as verifySheetStudent } from "./utils/studentVerification";
 import { createOverdueChecker } from "./utils/overdueRentals";
 import PortalLoadingScreen from "./components/PortalLoadingScreen";
 import AnimatedBorderButton from "./components/AnimatedBorderButton";
@@ -891,54 +892,12 @@ export default function App() {
     });
   }, [notifications]);
 
-  const verifyStudentInSheet = useCallback(async (studentId, studentName) => {
-    const cfg = EDITABLE?.safetySheet;
-    const url = cfg?.url?.trim();
-    if (!url) return { ok: false, error: "연동 URL이 설정되지 않았습니다." };
-    const payload = {
-      action: "verify_student",
-      key: EDITABLE.apiKey,
-      studentId: studentId?.trim(),
-      studentName: studentName?.trim(),
-      sheetName: cfg?.sheetName,
-      columns: cfg?.columns,
-    };
-    try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain;charset=UTF-8" },
-        body: JSON.stringify(payload),
-      });
-      const text = await res.text();
-      let data = null;
-      try { data = JSON.parse(text); } catch { data = null; }
-      if (!res.ok) return { ok: false, error: data?.error || text || `HTTP ${res.status}` };
-      if (!data) return { ok: false, error: "응답 형식 오류" };
-      if (!data.found) return { ok: false, error: "안전교육 이수자 명단에 없습니다." };
-      return { ok: true, student: data.student || {}, safetyTrained: data.safetyTrained ?? true };
-    } catch (err) {
-      // POST 실패 시 GET 방식으로 재시도 (preflight/CORS 우회)
-      try {
-        const params = new URLSearchParams({
-          action: "verify_student",
-          key: EDITABLE.apiKey,
-          studentId: payload.studentId || "",
-          studentName: payload.studentName || "",
-          sheetName: payload.sheetName || "",
-        });
-        const res = await fetch(`${url}?${params.toString()}`, { method: "GET" });
-        const text = await res.text();
-        let data = null;
-        try { data = JSON.parse(text); } catch { data = null; }
-        if (!res.ok) return { ok: false, error: data?.error || text || `HTTP ${res.status}` };
-        if (!data) return { ok: false, error: "응답 형식 오류" };
-        if (!data.found) return { ok: false, error: "안전교육 이수자 명단에 없습니다." };
-        return { ok: true, student: data.student || {}, safetyTrained: data.safetyTrained ?? true };
-      } catch (err2) {
-        return { ok: false, error: err2?.message || err?.message || "연동 실패" };
-      }
-    }
-  }, []);
+  const verifyStudentInSheet = useCallback((studentId, studentName) => verifySheetStudent({
+    config: EDITABLE.safetySheet,
+    apiKey: EDITABLE.apiKey,
+    studentId,
+    studentName,
+  }), []);
 
   const sendEmailNotification = useCallback(async ({ to, subject, body }) => {
     const cfg = EDITABLE?.emailNotify;

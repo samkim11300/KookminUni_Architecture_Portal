@@ -1,9 +1,15 @@
 import { useState } from "react";
-import { EDITABLE, ROOMS } from "../constants/data";
+import { EDITABLE, ROOMS, TIME_SLOTS } from "../constants/data";
 import theme from "../constants/theme";
 import { ts, dateStr } from "../utils/helpers";
 import Icons from "../components/Icons";
 import { Badge, Card, Button, Input, SectionTitle, Empty, Divider } from "../components/ui";
+
+// 여러 시간대를 선택한 예약은 가장 이른 시작 시간 기준, 시간 미정은 마지막에 표시한다.
+const getReservationStart = reservation => Math.min(
+  24,
+  ...(reservation.slots || []).map(id => TIME_SLOTS.find(slot => slot.id === id)?.start ?? 24),
+);
 
 function WorkerDashboard({ reservations, updateReservations, equipRentals, updateEquipRentals, equipmentDB, setEquipmentDB, notifications, markNotifRead, markAllNotifsRead, unreadCount, addLog, workerName, sendEmailNotification, printRequests, visitCount, dailyVisits, isMobile }) {
   const [showNotifPopup, setShowNotifPopup] = useState(false);
@@ -492,7 +498,7 @@ function WorkerDashboard({ reservations, updateReservations, equipRentals, updat
                     });
                     const dayMap = ["일", "월", "화", "수", "목", "금", "토"];
                     return sortedDates.map((date, gi) => {
-                      const items = groups[date];
+                      const items = [...groups[date]].sort((a, b) => getReservationStart(a) - getReservationStart(b));
                       const label = date === "미정"
                         ? "날짜 미정"
                         : `${date} (${dayMap[new Date(date + "T00:00:00").getDay()]})`;
