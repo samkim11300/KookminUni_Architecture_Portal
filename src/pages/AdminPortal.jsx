@@ -9,7 +9,7 @@ import { Badge, Card, Button, Input, SectionTitle, Empty, Tabs } from "../compon
 import AnimatedBorderButton from "../components/AnimatedBorderButton";
 
 
-function AdminPortal({ onLogout, logs, addLog, updateLogs, sheetConfig, updateSheetConfig, warnings, updateWarnings, blacklist, updateBlacklist, printBlacklist, updatePrintBlacklist, certificates, updateCertificates, inquiries, updateInquiries, sendEmailNotification, equipmentDB, setEquipmentDB, categoryOrder, setCategoryOrder, roomStatus, updateRoomStatus, formFiles, updateFormFiles, bannerText, updateBannerText, printNotice, updatePrintNotice, isMobile, isDark, toggleDark }) {
+function AdminPortal({ onLogout, logs, addLog, updateLogs, sheetConfig, updateSheetConfig, certificates, updateCertificates, inquiries, updateInquiries, sendEmailNotification, equipmentDB, setEquipmentDB, categoryOrder, setCategoryOrder, roomStatus, updateRoomStatus, formFiles, updateFormFiles, isMobile, isDark, toggleDark }) {
   const [tab, setTabRaw] = useState("roomToggle");
   const setTab = useCallback((newTab) => {
     setTabRaw(prev => {
@@ -20,7 +20,10 @@ function AdminPortal({ onLogout, logs, addLog, updateLogs, sheetConfig, updateSh
   useEffect(() => {
     const onPopState = (e) => {
       const s = e.state;
-      if (s?.page === "admin") setTabRaw(s.tab || "roomToggle");
+      if (s?.page === "admin") {
+        const availableTabs = ["roomToggle", "idPhoto", "forms", "adminLog", "integration"];
+        setTabRaw(availableTabs.includes(s.tab) ? s.tab : "roomToggle");
+      }
     };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
@@ -28,10 +31,6 @@ function AdminPortal({ onLogout, logs, addLog, updateLogs, sheetConfig, updateSh
   const [sheetUrl, setSheetUrl] = useState(sheetConfig?.reservationWebhookUrl || "");
   const [printSheetUrl, setPrintSheetUrl] = useState(sheetConfig?.printWebhookUrl || "");
   const [equipSheetUrl, setEquipSheetUrl] = useState(sheetConfig?.equipWebhookUrl || "");
-  const [warnForm, setWarnForm] = useState({ studentId: "", name: "", reason: "" });
-  const [blkForm, setBlkForm] = useState({ studentId: "", name: "", reason: "" });
-  const [pblkForm, setPblkForm] = useState({ studentId: "", name: "", reason: "" });
-
   const [logSelectMode, setLogSelectMode] = useState(false);
   const [selectedLogIds, setSelectedLogIds] = useState(new Set());
   const [logDeleteConfirm, setLogDeleteConfirm] = useState(false);
@@ -42,31 +41,6 @@ function AdminPortal({ onLogout, logs, addLog, updateLogs, sheetConfig, updateSh
   const [formUploadDesc, setFormUploadDesc] = useState("");
   const [formUploading, setFormUploading] = useState(false);
   const [formUploadError, setFormUploadError] = useState("");
-  // 배너 관리
-  const [bannerTitle, setBannerTitle] = useState(bannerText?.title || "");
-  const [bannerSubtitle, setBannerSubtitle] = useState(bannerText?.subtitle || "");
-  const [bannerSaved, setBannerSaved] = useState(false);
-  // 출력 안내 관리
-  const [printNoticeForm, setPrintNoticeForm] = useState({
-    bankAccount: printNotice?.bankAccount || "카카오뱅크 3333-35-7572363 [김경호]",
-    operatingHours: printNotice?.operatingHours || "평일 10:00~17:00 (점심시간 12:00~13:00 제외)",
-    pickupLocation: printNotice?.pickupLocation || "건축대학 출력실 (복지관 6층)",
-    noticeText: printNotice?.noticeText || "표 기준은 1장 단가이며, +600은 추가 600mm 길이 기준입니다.",
-  });
-  const [printNoticeSaved, setPrintNoticeSaved] = useState(false);
-
-  useEffect(() => {
-    if (printNotice) {
-      setPrintNoticeForm({
-        bankAccount: printNotice.bankAccount || "",
-        operatingHours: printNotice.operatingHours || "",
-        pickupLocation: printNotice.pickupLocation || "",
-        noticeText: printNotice.noticeText || "",
-      });
-    }
-  }, [printNotice]);
-
-
   // 학생증 사진 변경 필터 상태
   const [idPhotoFilter, setIdPhotoFilter] = useState("all");
 
@@ -90,83 +64,6 @@ function AdminPortal({ onLogout, logs, addLog, updateLogs, sheetConfig, updateSh
   };
 
   const adminLogs = logs.filter(l => l.type === "admin");
-  const addWarning = () => {
-    if (!warnForm.studentId.trim()) return;
-    updateWarnings(prev => {
-      const prevItem = prev[warnForm.studentId] || { count: 0 };
-      const next = {
-        ...prev,
-        [warnForm.studentId]: {
-          studentId: warnForm.studentId.trim(),
-          name: warnForm.name.trim() || prevItem.name || "",
-          count: (prevItem.count || 0) + 1,
-          reason: warnForm.reason.trim() || prevItem.reason || "",
-          updatedAt: ts(),
-        }
-      };
-      return next;
-    });
-    addLog(`[관리자] 경고 추가: ${warnForm.studentId} ${warnForm.name} ${warnForm.reason ? `| ${warnForm.reason}` : ""}`, "admin");
-    setWarnForm({ studentId: "", name: "", reason: "" });
-  };
-
-  const removeWarning = (studentId) => {
-    updateWarnings(prev => {
-      const next = { ...prev };
-      delete next[studentId];
-      return next;
-    });
-    addLog(`[관리자] 경고 삭제: ${studentId}`, "admin");
-  };
-
-  const addBlacklist = () => {
-    if (!blkForm.studentId.trim()) return;
-    updateBlacklist(prev => ({
-      ...prev,
-      [blkForm.studentId.trim()]: {
-        studentId: blkForm.studentId.trim(),
-        name: blkForm.name.trim() || "",
-        reason: blkForm.reason.trim() || "",
-        updatedAt: ts(),
-      }
-    }));
-    addLog(`[관리자] 블랙리스트 등록: ${blkForm.studentId} ${blkForm.name} ${blkForm.reason ? `| ${blkForm.reason}` : ""}`, "admin");
-    setBlkForm({ studentId: "", name: "", reason: "" });
-  };
-
-  const removeBlacklist = (studentId) => {
-    updateBlacklist(prev => {
-      const next = { ...prev };
-      delete next[studentId];
-      return next;
-    });
-    addLog(`[관리자] 블랙리스트 해제: ${studentId}`, "admin");
-  };
-
-  const addPrintBlacklist = () => {
-    if (!pblkForm.studentId.trim()) return;
-    updatePrintBlacklist(prev => ({
-      ...prev,
-      [pblkForm.studentId.trim()]: {
-        studentId: pblkForm.studentId.trim(),
-        name: pblkForm.name.trim() || "",
-        reason: pblkForm.reason.trim() || "",
-        updatedAt: ts(),
-      }
-    }));
-    addLog(`[관리자] 출력 블랙리스트 등록: ${pblkForm.studentId} ${pblkForm.name} ${pblkForm.reason ? `| ${pblkForm.reason}` : ""}`, "admin");
-    setPblkForm({ studentId: "", name: "", reason: "" });
-  };
-
-  const removePrintBlacklist = (studentId) => {
-    updatePrintBlacklist(prev => {
-      const next = { ...prev };
-      delete next[studentId];
-      return next;
-    });
-    addLog(`[관리자] 출력 블랙리스트 해제: ${studentId}`, "admin");
-  };
-
   const approveCertificate = async (cert) => {
     setApproving(true);
     try {
@@ -368,12 +265,9 @@ function AdminPortal({ onLogout, logs, addLog, updateLogs, sheetConfig, updateSh
         <Tabs
           tabs={[
             { id: "roomToggle", label: "실기실 ON/OFF", icon: <Icons.power size={15} /> },
-            { id: "discipline", label: "경고/블랙리스트", icon: <Icons.alert size={15} /> },
 
             { id: "idPhoto", label: "학생증 사진 변경", icon: <Icons.upload size={15} />, badge: pendingIdPhotoCount, badgeCircle: true },
             { id: "forms", label: "양식함 관리", icon: <Icons.clipboard size={15} /> },
-            { id: "banner", label: "배너 관리", icon: <Icons.edit size={15} /> },
-            { id: "printNotice", label: "출력 안내 관리", icon: <Icons.file size={15} /> },
             { id: "adminLog", label: "관리 이력", icon: <Icons.log size={15} /> },
             { id: "integration", label: "연동 설정", icon: <Icons.refresh size={15} /> },
           ]}
@@ -428,239 +322,6 @@ function AdminPortal({ onLogout, logs, addLog, updateLogs, sheetConfig, updateSh
                   </div>
                 );
               })}
-            </div>
-          </Card>
-        </div>
-      )}
-
-      {tab === "discipline" && (
-        <div>
-          <SectionTitle icon={<Icons.alert size={16} color={theme.red} />}>경고 누적</SectionTitle>
-          <Card style={{ marginBottom: 16 }}>
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12, marginBottom: 12 }}>
-              <Input label="학번" value={warnForm.studentId} onChange={e => setWarnForm(p => ({ ...p, studentId: e.target.value }))} />
-              <Input label="이름" value={warnForm.name} onChange={e => setWarnForm(p => ({ ...p, name: e.target.value }))} />
-            </div>
-            <Input label="사유 (선택)" value={warnForm.reason} onChange={e => setWarnForm(p => ({ ...p, reason: e.target.value }))} />
-            <div style={{ marginTop: 12 }}>
-              <Button size="sm" onClick={addWarning}>경고 추가</Button>
-            </div>
-          </Card>
-          <Card style={{ padding: 0, overflow: "hidden", marginBottom: 24 }}>
-            {Object.keys(warnings || {}).length === 0 ? (
-              <Empty icon={<Icons.alert size={28} />} text="경고 대상이 없습니다" />
-            ) : (
-              Object.values(warnings).map((w) => (
-                <div key={w.studentId} style={{ padding: "12px 18px", borderBottom: `1px solid ${theme.border}` }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 600 }}>{w.name || "(이름 없음)"} <span style={{ color: theme.textMuted }}>({w.studentId})</span></div>
-                      <div style={{ fontSize: 12, color: theme.textDim, marginTop: 4 }}>누적: {w.count}회 {w.reason ? `· ${w.reason}` : ""}</div>
-                    </div>
-                    <Button size="sm" variant="ghost" onClick={() => removeWarning(w.studentId)}>삭제</Button>
-                  </div>
-                </div>
-              ))
-            )}
-          </Card>
-
-          <SectionTitle icon={<Icons.shield size={16} color={theme.red} />}>블랙리스트</SectionTitle>
-          <Card style={{ marginBottom: 16 }}>
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12, marginBottom: 12 }}>
-              <Input label="학번" value={blkForm.studentId} onChange={e => setBlkForm(p => ({ ...p, studentId: e.target.value }))} />
-              <Input label="이름" value={blkForm.name} onChange={e => setBlkForm(p => ({ ...p, name: e.target.value }))} />
-            </div>
-            <Input label="사유 (선택)" value={blkForm.reason} onChange={e => setBlkForm(p => ({ ...p, reason: e.target.value }))} />
-            <div style={{ marginTop: 12 }}>
-              <Button size="sm" variant="danger" onClick={addBlacklist}>블랙리스트 등록</Button>
-            </div>
-          </Card>
-          <Card style={{ padding: 0, overflow: "hidden" }}>
-            {Object.keys(blacklist || {}).length === 0 ? (
-              <Empty icon={<Icons.shield size={28} />} text="블랙리스트가 없습니다" />
-            ) : (
-              Object.values(blacklist).map((b) => (
-                <div key={b.studentId} style={{ padding: "12px 18px", borderBottom: `1px solid ${theme.border}` }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 600 }}>{b.name || "(이름 없음)"} <span style={{ color: theme.textMuted }}>({b.studentId})</span></div>
-                      <div style={{ fontSize: 12, color: theme.textDim, marginTop: 4 }}>{b.reason || "사유 없음"}</div>
-                    </div>
-                    <Button size="sm" variant="ghost" onClick={() => removeBlacklist(b.studentId)}>해제</Button>
-                  </div>
-                </div>
-              ))
-            )}
-          </Card>
-
-          <div style={{ marginTop: 32 }} />
-          <SectionTitle icon={<Icons.file size={16} color={theme.orange} />}>출력실 블랙리스트</SectionTitle>
-          <div style={{ fontSize: 12, color: theme.textMuted, marginBottom: 12 }}>
-            출력실 블랙리스트에 등록된 학생은 로그인은 가능하지만 출력 접수 탭 이용이 제한됩니다.
-          </div>
-          <Card style={{ marginBottom: 16 }}>
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12, marginBottom: 12 }}>
-              <Input label="학번" value={pblkForm.studentId} onChange={e => setPblkForm(p => ({ ...p, studentId: e.target.value }))} />
-              <Input label="이름" value={pblkForm.name} onChange={e => setPblkForm(p => ({ ...p, name: e.target.value }))} />
-            </div>
-            <Input label="사유 (선택)" value={pblkForm.reason} onChange={e => setPblkForm(p => ({ ...p, reason: e.target.value }))} />
-            <div style={{ marginTop: 12 }}>
-              <Button size="sm" variant="danger" onClick={addPrintBlacklist}>출력 블랙리스트 등록</Button>
-            </div>
-          </Card>
-          <Card style={{ padding: 0, overflow: "hidden" }}>
-            {Object.keys(printBlacklist || {}).length === 0 ? (
-              <Empty icon={<Icons.file size={28} />} text="출력 블랙리스트가 없습니다" />
-            ) : (
-              Object.values(printBlacklist).map((b) => (
-                <div key={b.studentId} style={{ padding: "12px 18px", borderBottom: `1px solid ${theme.border}` }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 600 }}>{b.name || "(이름 없음)"} <span style={{ color: theme.textMuted }}>({b.studentId})</span></div>
-                      <div style={{ fontSize: 12, color: theme.textDim, marginTop: 4 }}>{b.reason || "사유 없음"}</div>
-                    </div>
-                    <Button size="sm" variant="ghost" onClick={() => removePrintBlacklist(b.studentId)}>해제</Button>
-                  </div>
-                </div>
-              ))
-            )}
-          </Card>
-        </div>
-      )}
-
-
-
-
-      {tab === "banner" && (
-        <div>
-          <SectionTitle icon={<Icons.edit size={16} color={theme.accent} />}>홈페이지 환영 배너 수정</SectionTitle>
-          <div style={{ fontSize: 12, color: theme.textMuted, marginBottom: 16 }}>
-            로그인 화면에 표시되는 환영 배너의 제목과 부제목을 수정할 수 있습니다.
-          </div>
-          <Card style={{ padding: 20 }}>
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: theme.text, marginBottom: 6 }}>배너 제목</div>
-              <Input
-                value={bannerTitle}
-                onChange={e => { setBannerTitle(e.target.value); setBannerSaved(false); }}
-                placeholder="예: 신입생분들 입학을 진심으로 환영합니다!"
-                style={{ width: "100%", boxSizing: "border-box" }}
-              />
-            </div>
-            <div style={{ marginBottom: 20 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: theme.text, marginBottom: 6 }}>배너 부제목</div>
-              <Input
-                value={bannerSubtitle}
-                onChange={e => { setBannerSubtitle(e.target.value); setBannerSaved(false); }}
-                placeholder="예: 함께 떠나봅시다! 🎉"
-                style={{ width: "100%", boxSizing: "border-box" }}
-              />
-            </div>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <Button onClick={() => {
-                updateBannerText({ title: bannerTitle, subtitle: bannerSubtitle });
-                setBannerSaved(true);
-                addLog("배너 텍스트 수정", "admin");
-              }}>저장</Button>
-              <Button variant="ghost" onClick={() => {
-                setBannerTitle(bannerText?.title || "");
-                setBannerSubtitle(bannerText?.subtitle || "");
-                setBannerSaved(false);
-              }}>초기화</Button>
-              {bannerSaved && <span style={{ fontSize: 12, color: theme.green, fontWeight: 600 }}>저장되었습니다</span>}
-            </div>
-          </Card>
-          <Card style={{ marginTop: 16, padding: 20 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: theme.text, marginBottom: 12 }}>미리보기</div>
-            <div style={{ textAlign: "center", padding: "16px 0" }}>
-              <div style={{ fontSize: isMobile ? 22 : 28, fontWeight: 800, letterSpacing: "-1px", lineHeight: 1.2, background: "linear-gradient(135deg, #FF6B00 0%, #FF9A3C 60%, #FFD580 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>
-                {bannerTitle || "제목을 입력하세요"}
-              </div>
-              <div style={{ fontSize: 13, color: theme.textMuted, marginTop: 8, letterSpacing: "0.3px" }}>
-                {bannerSubtitle || "부제목을 입력하세요"}
-              </div>
-            </div>
-          </Card>
-        </div>
-      )}
-
-      {tab === "printNotice" && (
-        <div>
-          <SectionTitle icon={<Icons.file size={16} color={theme.accent} />}>출력 안내 및 입금 계좌 관리</SectionTitle>
-          <div style={{ fontSize: 12, color: theme.textMuted, marginBottom: 16 }}>
-            학생 포털 [출력 신청] 탭에 표기되는 입금 계좌, 운영시간, 수령장소, 안내 문구를 관리합니다.
-          </div>
-          <Card style={{ padding: 20 }}>
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: theme.text, marginBottom: 6 }}>💳 입금 계좌</div>
-              <Input
-                value={printNoticeForm.bankAccount}
-                onChange={e => { setPrintNoticeForm(p => ({ ...p, bankAccount: e.target.value })); setPrintNoticeSaved(false); }}
-                placeholder="예: 카카오뱅크 3333-35-7572363 [김경호]"
-                style={{ width: "100%", boxSizing: "border-box" }}
-              />
-            </div>
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: theme.text, marginBottom: 6 }}>🕒 운영시간</div>
-              <Input
-                value={printNoticeForm.operatingHours}
-                onChange={e => { setPrintNoticeForm(p => ({ ...p, operatingHours: e.target.value })); setPrintNoticeSaved(false); }}
-                placeholder="예: 평일 10:00~17:00 (점심시간 12:00~13:00 제외)"
-                style={{ width: "100%", boxSizing: "border-box" }}
-              />
-            </div>
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: theme.text, marginBottom: 6 }}>📍 수령장소</div>
-              <Input
-                value={printNoticeForm.pickupLocation}
-                onChange={e => { setPrintNoticeForm(p => ({ ...p, pickupLocation: e.target.value })); setPrintNoticeSaved(false); }}
-                placeholder="예: 건축대학 출력실 (복지관 6층)"
-                style={{ width: "100%", boxSizing: "border-box" }}
-              />
-            </div>
-            <div style={{ marginBottom: 20 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: theme.text, marginBottom: 6 }}>ℹ️ 안내 문구</div>
-              <Input
-                value={printNoticeForm.noticeText}
-                onChange={e => { setPrintNoticeForm(p => ({ ...p, noticeText: e.target.value })); setPrintNoticeSaved(false); }}
-                placeholder="예: 표 기준은 1장 단가이며, +600은 추가 600mm 길이 기준입니다."
-                style={{ width: "100%", boxSizing: "border-box" }}
-              />
-            </div>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <Button onClick={() => {
-                updatePrintNotice(printNoticeForm);
-                setPrintNoticeSaved(true);
-                addLog("[관리자] 출력 안내 및 입금 계좌 수정", "admin");
-              }}>저장</Button>
-              <Button variant="ghost" onClick={() => {
-                const def = {
-                  bankAccount: "카카오뱅크 3333-35-7572363 [김경호]",
-                  operatingHours: "평일 10:00~17:00 (점심시간 12:00~13:00 제외)",
-                  pickupLocation: "건축대학 출력실 (복지관 6층)",
-                  noticeText: "표 기준은 1장 단가이며, +600은 추가 600mm 길이 기준입니다.",
-                };
-                setPrintNoticeForm(def);
-                updatePrintNotice(def);
-                setPrintNoticeSaved(true);
-                addLog("[관리자] 출력 안내 및 입금 계좌 초기화", "admin");
-              }}>초기화</Button>
-              {printNoticeSaved && <span style={{ fontSize: 12, color: theme.green, fontWeight: 600 }}>저장되었습니다</span>}
-            </div>
-          </Card>
-
-          <Card style={{ marginTop: 16, padding: 20 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: theme.text, marginBottom: 12 }}>👁️ 학생 포털 실제 표시 미리보기</div>
-            <div style={{ padding: 16, background: theme.surface, borderRadius: 12, border: `1px solid ${theme.border}` }}>
-              <div style={{ fontSize: 12, color: theme.textMuted, lineHeight: 1.6 }}>
-                💳 <strong>입금 계좌:</strong> {printNoticeForm.bankAccount || "계좌 정보 없음"}<br />
-                🕒 <strong>운영시간:</strong> {printNoticeForm.operatingHours || "운영시간 정보 없음"}<br />
-                📍 <strong>수령장소:</strong> {printNoticeForm.pickupLocation || "수령장소 정보 없음"}<br />
-                ℹ️ <strong>안내:</strong> {printNoticeForm.noticeText || "안내 정보 없음"}
-              </div>
-              <div style={{ marginTop: 12, fontSize: 11, color: theme.yellow, padding: "8px 12px", background: theme.yellowBg, borderRadius: 6 }}>
-                💡 {printNoticeForm.bankAccount || "입금계좌"}로 [결제금액]원을 입금 후 캡처해주세요
-              </div>
             </div>
           </Card>
         </div>

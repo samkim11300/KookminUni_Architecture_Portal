@@ -229,6 +229,15 @@ export default function HelpPage({ onBack, isMobile, isDark, toggleDark }) {
               <FeatureRow icon="💬" label="문의"
                 desc="학생이 제출한 문의와 로그인 없이 접수된 문의를 모두 확인하고 답변합니다."
               />
+              <FeatureRow icon="⚠️" label="경고 / 블랙리스트"
+                desc="규정 위반 학생에게 경고를 부여하거나 블랙리스트에 등록합니다. 블랙리스트 학생은 포털 사용이 제한됩니다."
+              />
+              <FeatureRow icon="✏️" label="배너 관리"
+                desc="로그인 화면의 환영 배너 제목과 부제목을 수정하고 미리 확인합니다."
+              />
+              <FeatureRow icon="📋" label="출력 안내 관리"
+                desc="학생 포털에 표시되는 출력 입금 계좌, 운영시간, 수령장소와 안내 문구를 관리합니다."
+              />
               <FeatureRow icon="📓" label="일지"
                 desc="근무 중 발생한 사항을 일지로 기록합니다. 날짜별 로그가 자동 기록되며, 직접 메모를 추가할 수도 있습니다."
               />
@@ -265,9 +274,6 @@ export default function HelpPage({ onBack, isMobile, isDark, toggleDark }) {
               />
               <FeatureRow icon="🔌" label="실기실 ON/OFF"
                 desc="각 실기실을 일시적으로 닫을 수 있습니다. 공사, 청소 등으로 사용 불가한 경우 OFF로 설정하면 학생 예약이 차단됩니다."
-              />
-              <FeatureRow icon="⚠️" label="경고 / 블랙리스트"
-                desc="규정 위반 학생에게 경고를 부여하거나 블랙리스트에 등록합니다. 블랙리스트 학생은 포털 사용이 제한됩니다."
               />
               <FeatureRow icon="📄" label="이수증 관리"
                 desc="학생이 업로드한 안전교육 이수증을 검토하고 승인 또는 반려합니다. 승인된 학생만 실기실 예약과 물품 대여를 이용할 수 있습니다."

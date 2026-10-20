@@ -1424,6 +1424,11 @@ export default function App() {
             printRequests={printRequests} updatePrintRequests={updatePrintRequests} refreshPrintRequests={refreshPrintRequests}
             archivePrintsToDrive={archivePrintsToDrive}
             certificates={certificates} updateCertificates={updateCertificates}
+            warnings={warnings} updateWarnings={updateWarnings}
+            blacklist={blacklist} updateBlacklist={updateBlacklist}
+            printBlacklist={printBlacklist} updatePrintBlacklist={updatePrintBlacklist}
+            bannerText={bannerText} updateBannerText={updateBannerText}
+            printNotice={printNotice} updatePrintNotice={updatePrintNotice}
             onResetSemester={onResetSemester}
             visitCount={visitCount}
             analyticsData={analyticsData}
@@ -1439,9 +1444,6 @@ export default function App() {
             workers={workers} updateWorkers={updateWorkers}
             logs={logs} addLog={addLog} updateLogs={updateLogs}
             sheetConfig={sheetConfig} updateSheetConfig={updateSheetConfig}
-            warnings={warnings} updateWarnings={updateWarnings}
-            blacklist={blacklist} updateBlacklist={updateBlacklist}
-            printBlacklist={printBlacklist} updatePrintBlacklist={updatePrintBlacklist}
             certificates={certificates}
             updateCertificates={updateCertificates}
             inquiries={inquiries} updateInquiries={updateInquiries}
@@ -1450,8 +1452,6 @@ export default function App() {
             categoryOrder={categoryOrder} setCategoryOrder={setCategoryOrder}
             roomStatus={roomStatus} updateRoomStatus={updateRoomStatus}
             formFiles={formFiles} updateFormFiles={updateFormFiles}
-            bannerText={bannerText} updateBannerText={updateBannerText}
-            printNotice={printNotice} updatePrintNotice={updatePrintNotice}
             isMobile={isMobile}
             isDark={isDark} toggleDark={toggleDark}
           />

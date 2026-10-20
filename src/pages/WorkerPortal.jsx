@@ -11,8 +11,11 @@ import PrintManagement from "../features/PrintManagement";
 import InquiriesPanel from "../features/InquiriesPanel";
 import LogViewer from "../features/LogViewer";
 import EquipmentManagement from "../features/EquipmentManagement";
+import DisciplineManagement from "../features/DisciplineManagement";
+import BannerManagement from "../features/BannerManagement";
+import PrintNoticeManagement from "../features/PrintNoticeManagement";
 
-function WorkerPortal({ user, onLogout, reservations, updateReservations, equipRentals, updateEquipRentals, equipmentDB, setEquipmentDB, categoryOrder, setCategoryOrder, logs, addLog, notifications, markNotifRead, markAllNotifsRead, unreadCount, sendEmailNotification, inquiries, updateInquiries, printRequests, updatePrintRequests, refreshPrintRequests, archivePrintsToDrive, certificates, updateCertificates, onResetSemester, visitCount, analyticsData, dailyVisits, isMobile, isDark, toggleDark }) {
+function WorkerPortal({ user, onLogout, reservations, updateReservations, equipRentals, updateEquipRentals, equipmentDB, setEquipmentDB, categoryOrder, setCategoryOrder, logs, addLog, notifications, markNotifRead, markAllNotifsRead, unreadCount, sendEmailNotification, inquiries, updateInquiries, printRequests, updatePrintRequests, refreshPrintRequests, archivePrintsToDrive, certificates, updateCertificates, onResetSemester, visitCount, analyticsData, dailyVisits, warnings, updateWarnings, blacklist, updateBlacklist, printBlacklist, updatePrintBlacklist, bannerText, updateBannerText, printNotice, updatePrintNotice, isMobile, isDark, toggleDark }) {
   const [tab, setTabRaw] = useState("dashboard");
   const safePrintRequests = Array.isArray(printRequests) ? printRequests : [];
   const setTab = useCallback((newTab) => {
@@ -275,9 +278,12 @@ function WorkerPortal({ user, onLogout, reservations, updateReservations, equipR
             { id: "certificates", label: "이수증 관리", icon: <Icons.file size={15} />, badge: certificateCount, badgeCircle: true },
             { id: "print", label: "출력 관리", icon: <Icons.file size={15} />, badge: pendingPrints },
             { id: "inquiries", label: "문의", icon: <Icons.file size={15} />, badge: pendingInquiries },
+            { id: "discipline", label: "경고/블랙리스트", icon: <Icons.alert size={15} /> },
+            { id: "banner", label: "배너 관리", icon: <Icons.edit size={15} /> },
+            { id: "printNotice", label: "출력 안내 관리", icon: <Icons.file size={15} /> },
             { id: "logs", label: "일지", icon: <Icons.log size={15} /> },
           ]}
-          active={tab} onChange={setTab} isMobile={isMobile}
+          active={tab} onChange={setTab} isMobile={isMobile} wrap
         />
       </div>
 
@@ -298,6 +304,18 @@ function WorkerPortal({ user, onLogout, reservations, updateReservations, equipR
 
       {tab === "equipment" && (
         <EquipmentManagement equipmentDB={equipmentDB} setEquipmentDB={setEquipmentDB} categoryOrder={categoryOrder} setCategoryOrder={setCategoryOrder} addLog={addLog} workerName={user.name} isMobile={isMobile} />
+      )}
+
+      {tab === "discipline" && (
+        <DisciplineManagement warnings={warnings} updateWarnings={updateWarnings} blacklist={blacklist} updateBlacklist={updateBlacklist} printBlacklist={printBlacklist} updatePrintBlacklist={updatePrintBlacklist} addLog={addLog} isMobile={isMobile} />
+      )}
+
+      {tab === "banner" && (
+        <BannerManagement bannerText={bannerText} updateBannerText={updateBannerText} addLog={addLog} isMobile={isMobile} />
+      )}
+
+      {tab === "printNotice" && (
+        <PrintNoticeManagement printNotice={printNotice} updatePrintNotice={updatePrintNotice} addLog={addLog} />
       )}
 
       {tab === "certificates" && (
