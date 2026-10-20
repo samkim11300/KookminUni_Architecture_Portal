@@ -5,6 +5,7 @@ import { EDITABLE, ROOMS, DEFAULT_EQUIPMENT_DB, DEFAULT_WORKERS } from "./consta
 import theme, { darkColors, lightColors } from "./constants/theme";
 import { uid, ts, dateStr, ACTIVE_PORTAL_SESSION_KEY, emailTemplate, sha256 } from "./utils/helpers";
 import store from "./utils/storage";
+import { createOverdueChecker } from "./utils/overdueRentals";
 import PortalLoadingScreen from "./components/PortalLoadingScreen";
 import AnimatedBorderButton from "./components/AnimatedBorderButton";
 import LoginPage from "./pages/LoginPage";
@@ -75,7 +76,6 @@ export default function App() {
     reservationWebhookUrl: "https://script.google.com/macros/s/AKfycbwyzzFFUQRLjITW6D6YVw4RzVoB4ye80-tb7Tsan4RspCPAIdq3pV4C9_ixeGp6Hdotpg/exec",
     printWebhookUrl: "https://script.google.com/macros/s/AKfycbxoF7nFIP6neZjGegxwwMYZn5FIt2nXsoPsXUIsWxv5nqmcglf7i9K34PcgL2XutNwD/exec"
   });
-  const [overdueFlags, setOverdueFlags] = useState({});
   const [warnings, setWarnings] = useState({});
   const [blacklist, setBlacklist] = useState({});
   const [printBlacklist, setPrintBlacklist] = useState({});
@@ -167,7 +167,7 @@ export default function App() {
         setDataLoaded(true);
 
         // 2단계: 나머지 데이터 백그라운드 로드 (화면 표시 후)
-        const [wk, warn, blk, certs, res, eq, lg, notif, sheet, overdue, inq, prints, visits, visitors, analytics, eqDB, dVisits, savedRoomStatus, savedCategoryOrder, pblk, savedBanner, savedPrintNotice] = await Promise.all([
+        const [wk, warn, blk, certs, res, eq, lg, notif, sheet, inq, prints, visits, visitors, analytics, eqDB, dVisits, savedRoomStatus, savedCategoryOrder, pblk, savedBanner, savedPrintNotice] = await Promise.all([
           store.get("workers"),
           store.get("warnings"),
           store.get("blacklist"),
@@ -177,7 +177,6 @@ export default function App() {
           store.get("logs"),
           store.get("notifications"),
           store.get("sheetConfig"),
-          store.get("overdueFlags"),
           store.get("inquiries"),
           store.get("printRequests_v2"),
           store.get("visitCount"),
@@ -272,7 +271,6 @@ export default function App() {
           });
         }
         if (sheet) setSheetConfig(sheet);
-        if (overdue) setOverdueFlags(overdue);
         if (inq) setInquiries(inq);
         // 출력 신청: Supabase + 로컬 중 최신 데이터 사용
         const serverPrintsRaw = await supabaseStore.get("portal/printRequests_v2");
@@ -581,14 +579,6 @@ export default function App() {
     setSheetConfig(prev => {
       const next = typeof updater === "function" ? updater(prev) : updater;
       persist("sheetConfig", next);
-      return next;
-    });
-  }, [persist]);
-
-  const updateOverdueFlags = useCallback((updater) => {
-    setOverdueFlags(prev => {
-      const next = typeof updater === "function" ? updater(prev) : updater;
-      persist("overdueFlags", next);
       return next;
     });
   }, [persist]);
@@ -1001,32 +991,16 @@ export default function App() {
     }
   }, []);
 
-  const overdueFlagsRef = useRef(overdueFlags);
-  useEffect(() => { overdueFlagsRef.current = overdueFlags; }, [overdueFlags]);
-
-  const equipRentalsRef = useRef(equipRentals);
-  useEffect(() => { equipRentalsRef.current = equipRentals; }, [equipRentals]);
-
-  // 물품 반납 지연 안내: 매일 오전 9시에 연체 건당 한 번만 발송한다.
-  // overdueFlags[r.id] 에는 마지막으로 안내한 날짜(YYYY-MM-DD)를 저장해 같은 날 중복 발송을 막는다.
+  // 반납 여부와 발송 이력은 반드시 서버에서 조회한다.
+  // 오래 열린 탭의 대여 목록이나 storage의 로컬 fallback으로 이메일을 보내면 안 된다.
   useEffect(() => {
-    const runOverdueCheck = () => {
-      if (new Date().getHours() !== 9) return; // 오전 9시대에만 실행
-      const rentals = equipRentalsRef.current;
-      if (!rentals?.length) return;
-      const today = dateStr();
-      const currentFlags = overdueFlagsRef.current || {};
-      const newFlags = { ...currentFlags };
-      let changed = false;
-      rentals.forEach(r => {
-        if (r.status === "returned" || r.status === "cancelled") return;
-        if (!r.returnDate || r.returnDate >= today) return;
-        if (currentFlags[r.id] === today) return; // 오늘 이미 안내함
-        newFlags[r.id] = today;
-        changed = true;
-        addNotification(`⏰ 연체 알림: ${r.studentName} → ${r.items?.map(i => i.name).join(", ")} (반납일 ${r.returnDate})`, "equipment", true);
-        addLog(`[연체] ${r.studentName}(${r.studentId}) → ${r.items?.map(i => i.name).join(", ")} | 반납일 ${r.returnDate}`, "equipment", { studentId: r.studentId });
-        sendEmailNotification({
+    const checker = createOverdueChecker({
+      readRentals: () => supabaseStore.get("portal/equipRentals", { throwOnError: true }),
+      readFlags: () => supabaseStore.get("portal/overdueFlags", { throwOnError: true }),
+      writeFlags: flags => supabaseStore.set("portal/overdueFlags", flags),
+      onError: error => console.warn("[Overdue] 서버 확인 또는 알림 처리 실패:", error),
+      notify: async r => {
+        const result = await sendEmailNotification({
           subject: `[국민대 건축대학] 물품 반납 지연 안내`,
           body: emailTemplate(r.studentName, [
             "물품 대여 반납 기한이 지났습니다.",
@@ -1040,13 +1014,17 @@ export default function App() {
             "즉시 반납 부탁드립니다.",
           ].join("\n")),
         });
-      });
-      if (changed) updateOverdueFlags(newFlags);
-    };
-    runOverdueCheck();
-    const timerId = setInterval(runOverdueCheck, 60 * 1000);
-    return () => clearInterval(timerId);
-  }, [addNotification, addLog, sendEmailNotification, updateOverdueFlags]);
+        if (result?.ok) {
+          addNotification(`⏰ 연체 알림: ${r.studentName} → ${r.items?.map(i => i.name).join(", ")} (반납일 ${r.returnDate})`, "equipment", true);
+          addLog(`[연체] ${r.studentName}(${r.studentId}) → ${r.items?.map(i => i.name).join(", ")} | 반납일 ${r.returnDate}`, "equipment", { studentId: r.studentId });
+        }
+        return result;
+      },
+    });
+    checker.run();
+    const timerId = setInterval(() => checker.run(), 60 * 1000);
+    return () => { checker.dispose(); clearInterval(timerId); };
+  }, [addNotification, addLog, sendEmailNotification]);
 
   const syncReservationToSheet = useCallback(async (reservation) => {
     const url = sheetConfig?.reservationWebhookUrl?.trim();
