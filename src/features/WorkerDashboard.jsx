@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { EDITABLE, ROOMS, TIME_SLOTS } from "../constants/data";
 import theme from "../constants/theme";
-import { ts, dateStr } from "../utils/helpers";
+import { ts } from "../utils/helpers";
 import Icons from "../components/Icons";
 import { Badge, Card, Button, Input, SectionTitle, Empty, Divider } from "../components/ui";
 
@@ -22,7 +22,8 @@ function WorkerDashboard({ reservations, updateReservations, equipRentals, updat
   const pendingRentals = equipRentals.filter(r => r.status === "pending_pickup");
   const activeRentals = equipRentals.filter(r => r.status === "pending_pickup" || r.status === "ready");
   const pendingPrints = (printRequests || []).filter(p => p.status === "pending" || p.status === "processing").length;
-  const today = dateStr();
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
   // 체크리스트 완료 상태
   const checklistItems = [
@@ -492,6 +493,9 @@ function WorkerDashboard({ reservations, updateReservations, equipRentals, updat
                       return acc;
                     }, {});
                     const sortedDates = Object.keys(groups).sort((a, b) => {
+                      if (a === b) return 0;
+                      if (a === today) return -1;
+                      if (b === today) return 1;
                       if (a === "미정") return 1;
                       if (b === "미정") return -1;
                       return a.localeCompare(b);
