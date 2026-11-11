@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { EDITABLE } from "../constants/data";
 import theme from "../constants/theme";
-import { uid, ts, dateStr, tomorrow } from "../utils/helpers";
+import { uid, ts } from "../utils/helpers";
 import Icons from "../components/Icons";
 import { Badge, Card, Button, Input, SectionTitle, Empty, AlertPopup } from "../components/ui";
 
@@ -23,19 +23,14 @@ const nextWeekday = (dateStr) => {
   while (d.getDay() === 0 || d.getDay() === 6) {
     d.setDate(d.getDate() + 1);
   }
-  return d.toISOString().split("T")[0];
-};
-
-const nextDay = (dateStr) => {
-  const d = new Date(dateStr + "T00:00:00");
-  d.setDate(d.getDate() + 1);
-  return d.toISOString().split("T")[0];
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
 function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, setEquipmentDB, categoryOrder, addLog, addNotification, syncEquipToSheet, isMobile, onNavigateTab }) {
   const [selected, setSelected] = useState(null);
-  const [rentDate, setRentDate] = useState(nextWeekday(dateStr()));
-  const [returnDate, setReturnDate] = useState(nextWeekday(tomorrow()));
+  const [rentDate, setRentDate] = useState(() => nextWeekday(ts().slice(0, 10)));
+  const [returnConfirmed, setReturnConfirmed] = useState(false);
+  const returnDate = rentDate;
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(null);
@@ -59,30 +54,24 @@ function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, 
     return matchesCat && matchesSearch;
   });
 
-  // 권장 반납일 = 대여 예정일의 익일(다음 평일). 이보다 늦으면 이틀 이상 대여로 담당자 승인 필요.
-  const recommendedReturn = nextWeekday(nextDay(rentDate));
-  const needsApproval = returnDate > recommendedReturn;
-  const returnBeforeRent = returnDate < rentDate;
-
-  // 대여 예정일 변경 시, 반납일이 대여일보다 빠르면 권장 반납일로 맞춰줌
+  // 대여는 당일만 가능하며, 날짜 변경 시 반납 안내를 다시 확인합니다.
   const handleRentDateChange = (val) => {
     if (!val) return;
     if (isWeekend(val)) setShowWeekendPopup(true);
     setRentDate(val);
-    if (returnDate < val) setReturnDate(nextWeekday(nextDay(val)));
+    setReturnConfirmed(false);
   };
 
   const toggleEquip = (id) => {
     setSelected(prev => prev === id ? null : id);
     setStandQty(1);
+    setReturnConfirmed(false);
   };
 
   const handleSubmit = () => {
-    if (!selected) return;
-    if (!phone.trim()) return;
-    if (isWeekend(rentDate) || isWeekend(returnDate)) { setShowWeekendPopup(true); return; }
-    if (isPast(rentDate) || isPast(returnDate)) return;
-    if (returnBeforeRent) return;
+    if (!selected || submitting || !phone.trim() || !returnConfirmed) return;
+    if (isWeekend(rentDate)) { setShowWeekendPopup(true); return; }
+    if (isPast(rentDate)) return;
     setSubmitting(true);
     setTimeout(() => {
       const item = equipmentDB.find(e => e.id === selected);
@@ -104,8 +93,32 @@ function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, 
       setSelected(null);
       setNote("");
       setPhone("");
+      setReturnConfirmed(false);
     }, 800);
   };
+
+  const returnConfirmation = (
+    <label style={{
+      display: "flex", alignItems: "flex-start", gap: 10,
+      marginTop: 14, padding: "12px 14px", borderRadius: 8,
+      background: theme.yellowBg, border: `1px solid ${theme.yellowBorder}`,
+      fontSize: 13, color: theme.text, lineHeight: 1.6, wordBreak: "keep-all", cursor: "pointer",
+    }}>
+      <input
+        type="checkbox"
+        required
+        checked={returnConfirmed}
+        onChange={e => setReturnConfirmed(e.target.checked)}
+        style={{ width: 18, height: 18, margin: "3px 0 0", flexShrink: 0, accentColor: theme.accent }}
+      />
+      <span>
+        <strong style={{ color: theme.yellow }}>[필수] 당일 반납 안내 확인</strong><br />
+        물품은 대여 당일 하루만 이용할 수 있으며, 반드시 대여 당일 오후 4시 30분까지 반납해야 함을 확인했습니다.
+      </span>
+    </label>
+  );
+  const submitDisabled = submitting || isWeekend(rentDate) || isPast(rentDate) || !phone.trim() || !returnConfirmed;
+  const submitLabel = submitting ? "신청 중..." : isPast(rentDate) ? "과거 날짜는 설정 불가" : isWeekend(rentDate) ? "주말은 대여일로 설정 불가" : !phone.trim() ? "연락처를 입력해주세요" : !returnConfirmed ? "당일 반납 안내를 확인해주세요" : null;
 
   return (
     <div className="fade-in">
@@ -116,7 +129,7 @@ function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, 
             <div>
               <div style={{ fontSize: 14, fontWeight: 700, color: theme.green }}>대여 신청 완료!</div>
               <div style={{ fontSize: 13, color: theme.textMuted, marginTop: 2 }}>
-                {success.items.map(i => i.name).join(", ")} · 대여 {success.rentDate} · 반납 {success.returnDate}
+                {success.items.map(i => i.name).join(", ")} · 대여 {success.rentDate} · 반납 {success.returnDate} 오후 4시 30분까지
               </div>
             </div>
             <Button variant="ghost" size="sm" style={{ marginLeft: "auto" }} onClick={() => setSuccess(null)}><Icons.x size={14} /></Button>
@@ -338,17 +351,6 @@ function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, 
                         {isPast(rentDate) ? "⚠️ 과거 날짜는 불가" : isWeekend(rentDate) ? "⚠️ 주말은 대여 불가" : "물품을 수령할 날짜"}
                       </div>
                     </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                      <Input label="반납 예정일" type="date" value={returnDate} onChange={e => {
-                        const val = e.target.value;
-                        if (!val) return;
-                        if (isWeekend(val)) setShowWeekendPopup(true);
-                        setReturnDate(val);
-                      }} style={{ maxWidth: 180, borderColor: (isWeekend(returnDate) || isPast(returnDate) || returnBeforeRent) ? theme.red : undefined }} />
-                      <div style={{ fontSize: 11, color: (isWeekend(returnDate) || isPast(returnDate) || returnBeforeRent) ? theme.red : theme.textDim, fontWeight: (isWeekend(returnDate) || isPast(returnDate) || returnBeforeRent) ? 600 : 400 }}>
-                        {returnBeforeRent ? "⚠️ 대여일 이후로 선택" : isPast(returnDate) ? "⚠️ 과거 날짜는 불가" : isWeekend(returnDate) ? "⚠️ 주말은 반납 불가" : "주말(토·일) 반납 불가"}
-                      </div>
-                    </div>
                     <div style={{ minWidth: 180 }}>
                       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                         <Input
@@ -368,16 +370,7 @@ function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, 
                       <Input label="비고 (선택)" placeholder="예: 수업용, 팀프로젝트 등" value={note} onChange={e => setNote(e.target.value)} />
                     </div>
                   </div>
-                  <div style={{
-                    marginTop: 14, padding: "10px 12px", borderRadius: 8,
-                    background: needsApproval ? theme.yellowBg : theme.surface,
-                    border: `1px solid ${needsApproval ? theme.yellowBorder : theme.border}`,
-                    fontSize: 12, color: needsApproval ? theme.yellow : theme.textMuted, lineHeight: 1.6, wordBreak: "keep-all",
-                  }}>
-                    {needsApproval
-                      ? "⚠️ 이틀 이상 대여를 선택하셨습니다. 이 경우 담당자(교학팀)의 승인이 필요하며, 승인 전에는 수령이 제한될 수 있습니다."
-                      : "💡 권장 대여 기간은 1일(익일 반납)입니다. 이틀 이상 대여를 원하시면 담당자(교학팀)의 승인이 필요합니다."}
-                  </div>
+                  {returnConfirmation}
                 </Card>
 
                 {/* Summary */}
@@ -386,12 +379,12 @@ function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, 
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
                     <Badge color="accent">{eq.icon} {eq.name}{eq.isStand ? ` x${standQty}` : ""}</Badge>
                     <Badge color="blue">대여: {rentDate}</Badge>
-                    <Badge color="blue">반납: {returnDate}</Badge>
+                    <Badge color="blue">당일 오후 4시 30분까지 반납</Badge>
                   </div>
                 </Card>
 
-                <Button size="lg" onClick={handleSubmit} disabled={submitting || isWeekend(rentDate) || isWeekend(returnDate) || isPast(rentDate) || isPast(returnDate) || returnBeforeRent || !phone.trim()} style={{ width: "100%", justifyContent: "center", marginBottom: 40 }}>
-                  {submitting ? "신청 중..." : (isPast(rentDate) || isPast(returnDate)) ? "과거 날짜는 설정 불가" : (isWeekend(rentDate) || isWeekend(returnDate)) ? "주말은 대여/반납일로 설정 불가" : returnBeforeRent ? "반납일은 대여일 이후로 선택" : !phone.trim() ? "연락처를 입력해주세요" : `${eq.name} 대여 신청`}
+                <Button size="lg" onClick={handleSubmit} disabled={submitDisabled} style={{ width: "100%", justifyContent: "center", marginBottom: 40 }}>
+                  {submitLabel || `${eq.name} 대여 신청`}
                 </Button>
               </div>
             );
@@ -444,27 +437,6 @@ function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, 
                 </div>
               </div>
               <div style={{ marginBottom: 16 }}>
-                <Input label="반납 예정일" type="date" value={returnDate} onChange={e => {
-                  const val = e.target.value;
-                  if (!val) return;
-                  if (isWeekend(val)) setShowWeekendPopup(true);
-                  setReturnDate(val);
-                }} style={{ borderColor: (isWeekend(returnDate) || isPast(returnDate) || returnBeforeRent) ? theme.red : undefined }} />
-                <div style={{ fontSize: 11, marginTop: 4, color: (isWeekend(returnDate) || isPast(returnDate) || returnBeforeRent) ? theme.red : theme.textDim, fontWeight: (isWeekend(returnDate) || isPast(returnDate) || returnBeforeRent) ? 600 : 400 }}>
-                  {returnBeforeRent ? "⚠️ 대여일 이후로 선택" : isPast(returnDate) ? "⚠️ 과거 날짜는 불가" : isWeekend(returnDate) ? "⚠️ 주말은 반납 불가" : "주말(토·일) 반납 불가"}
-                </div>
-                <div style={{
-                  marginTop: 10, padding: "10px 12px", borderRadius: 8,
-                  background: needsApproval ? theme.yellowBg : theme.surface,
-                  border: `1px solid ${needsApproval ? theme.yellowBorder : theme.border}`,
-                  fontSize: 12, color: needsApproval ? theme.yellow : theme.textMuted, lineHeight: 1.6, wordBreak: "keep-all",
-                }}>
-                  {needsApproval
-                    ? "⚠️ 이틀 이상 대여를 선택하셨습니다. 이 경우 담당자(교학팀)의 승인이 필요하며, 승인 전에는 수령이 제한될 수 있습니다."
-                    : "💡 권장 대여 기간은 1일(익일 반납)입니다. 이틀 이상 대여를 원하시면 담당자(교학팀)의 승인이 필요합니다."}
-                </div>
-              </div>
-              <div style={{ marginBottom: 16 }}>
                 <Input
                   label="연락처 (필수)"
                   type="tel"
@@ -480,28 +452,29 @@ function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, 
               <div style={{ marginBottom: 20 }}>
                 <Input label="비고 (선택)" placeholder="예: 수업용, 팀프로젝트 등" value={note} onChange={e => setNote(e.target.value)} />
               </div>
+              <div style={{ marginBottom: 20 }}>{returnConfirmation}</div>
               <Card style={{ marginBottom: 16, background: theme.surface, padding: 14 }}>
                 <div style={{ fontSize: 12, color: theme.textMuted, marginBottom: 8 }}>대여 요약</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                   <Badge color="accent">{eq.icon} {eq.name}{eq.isStand ? ` x${standQty}` : ""}</Badge>
                   <Badge color="blue">대여: {rentDate}</Badge>
-                  <Badge color="blue">반납: {returnDate}</Badge>
+                  <Badge color="blue">당일 오후 4시 30분까지 반납</Badge>
                 </div>
               </Card>
-              <Button size="lg" onClick={handleSubmit} disabled={submitting || isWeekend(rentDate) || isWeekend(returnDate) || isPast(rentDate) || isPast(returnDate) || returnBeforeRent || !phone.trim()} style={{ width: "100%", justifyContent: "center" }}>
-                {submitting ? "신청 중..." : (isPast(rentDate) || isPast(returnDate)) ? "과거 날짜는 설정 불가" : (isWeekend(rentDate) || isWeekend(returnDate)) ? "주말은 대여/반납일로 설정 불가" : returnBeforeRent ? "반납일은 대여일 이후로 선택" : !phone.trim() ? "연락처를 입력해주세요" : `${eq.name} 대여 신청`}
+              <Button size="lg" onClick={handleSubmit} disabled={submitDisabled} style={{ width: "100%", justifyContent: "center" }}>
+                {submitLabel || `${eq.name} 대여 신청`}
               </Button>
             </div>
           </div>
         );
       })()}
 
-      {/* ═══ 주말 반납 불가 팝업 ═══ */}
+      {/* ═══ 주말 대여 불가 팝업 ═══ */}
       <AlertPopup
         isVisible={showWeekendPopup}
         icon="🚫"
-        title="주말은 반납일로 설정할 수 없습니다"
-        description="물품 반납은 평일(월~금)에만 가능합니다. 평일 날짜를 선택해주세요."
+        title="주말은 대여일로 설정할 수 없습니다"
+        description="물품 대여와 당일 반납은 평일(월~금)에만 가능합니다. 평일 날짜를 선택해주세요."
         buttonText="확인"
         onClose={() => setShowWeekendPopup(false)}
         color={theme.red}
@@ -512,7 +485,7 @@ function EquipmentRental({ user, equipRentals, updateEquipRentals, equipmentDB, 
         isVisible={showPopup}
         icon="✅"
         title="대여 신청 완료!"
-        description="물품 대여가 정상적으로 접수되었습니다."
+        description="물품 대여가 정상적으로 접수되었습니다. 대여 당일 오후 4시 30분까지 반드시 반납해주세요."
         buttonText="확인했습니다"
         onClose={() => setShowPopup(false)}
         color={theme.green}
