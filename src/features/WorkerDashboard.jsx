@@ -15,8 +15,9 @@ function WorkerDashboard({ reservations, updateReservations, equipRentals, updat
   const [showNotifPopup, setShowNotifPopup] = useState(false);
   const [expandedChecklist, setExpandedChecklist] = useState(null);
   const [analyticsOpen, setAnalyticsOpen] = useState(true);
-  const [visitorStartDate, setVisitorStartDate] = useState("");
-  const [visitorEndDate, setVisitorEndDate] = useState("");
+  const [visitorPeriod, setVisitorPeriod] = useState("day"); // day | week | month
+  const [visitorDate, setVisitorDate] = useState(""); // 선택 날짜 (빈 값 = 오늘)
+  const [visitorHover, setVisitorHover] = useState(null);
   const todayRes = reservations.filter(r => r.status === "approved");
   const pendingRes = reservations.filter(r => r.status === "pending");
   const pendingRentals = equipRentals.filter(r => r.status === "pending_pickup");
@@ -622,128 +623,205 @@ function WorkerDashboard({ reservations, updateReservations, equipRentals, updat
             </Card>
           </div>
 
-          {/* 일별 방문자 선 그래프 */}
-          <Card style={{ padding: 18 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: isMobile ? "flex-start" : "center", marginBottom: 16, flexDirection: isMobile ? "column" : "row", gap: isMobile ? 10 : 0 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <Icons.users size={15} color={theme.green} />
-                <span style={{ fontSize: 14, fontWeight: 700, color: theme.text }}>일별 방문자</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                <input type="date" value={visitorStartDate} onChange={e => setVisitorStartDate(e.target.value)}
-                  style={{ padding: "4px 8px", fontSize: 11, borderRadius: theme.radiusSm, border: `1px solid ${theme.border}`, background: theme.surface, color: theme.text, fontFamily: theme.fontMono, outline: "none", colorScheme: "dark" }}
-                />
-                <span style={{ fontSize: 11, color: theme.textDim }}>~</span>
-                <input type="date" value={visitorEndDate} onChange={e => setVisitorEndDate(e.target.value)}
-                  style={{ padding: "4px 8px", fontSize: 11, borderRadius: theme.radiusSm, border: `1px solid ${theme.border}`, background: theme.surface, color: theme.text, fontFamily: theme.fontMono, outline: "none", colorScheme: "dark" }}
-                />
-                {(visitorStartDate || visitorEndDate) && (
-                  <button onClick={() => { setVisitorStartDate(""); setVisitorEndDate(""); }}
-                    style={{ padding: "4px 8px", fontSize: 11, borderRadius: theme.radiusSm, border: `1px solid ${theme.border}`, background: theme.surface, color: theme.textMuted, cursor: "pointer", fontFamily: theme.font }}>
-                    초기화
-                  </button>
-                )}
-              </div>
-            </div>
+          {/* 방문자 통계 (일간/주간/월간 선 그래프) */}
+          <Card style={{ padding: 0, overflow: "hidden" }}>
             {(() => {
-              const useCustomRange = visitorStartDate && visitorEndDate && visitorStartDate <= visitorEndDate;
-              let rangeDates, rangeLabels;
-              if (useCustomRange) {
-                rangeDates = [];
-                const cur = new Date(visitorStartDate + "T00:00:00");
-                const end = new Date(visitorEndDate + "T00:00:00");
-                while (cur <= end) {
-                  rangeDates.push(cur.toISOString().slice(0, 10));
-                  cur.setDate(cur.getDate() + 1);
+              // ─── 날짜 유틸 (로컬 시간 기준) ───
+              const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+              const parse = (s) => new Date(s + "T00:00:00");
+              const addDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
+              const weekStart = (d) => addDays(d, -((d.getDay() + 6) % 7)); // 월요일 시작
+              const visits = dailyVisits || {};
+              const sumRange = (start, days) => {
+                let s = 0;
+                for (let i = 0; i < days; i++) s += visits[fmt(addDays(start, i))] || 0;
+                return s;
+              };
+
+              const todayDate = parse(today);
+              const selDate = visitorDate ? parse(visitorDate) : todayDate;
+              const period = visitorPeriod;
+
+              // ─── 기간별 데이터 포인트 생성 (선택일 기준 과거 N개) ───
+              const points = [];
+              if (period === "day") {
+                for (let i = 14; i >= 0; i--) {
+                  const d = addDays(selDate, -i);
+                  points.push({ key: fmt(d), date: d, count: visits[fmt(d)] || 0, label: `${d.getDate()}일`, sub: `${d.getMonth() + 1}월` });
                 }
-                const dayMap = ["일", "월", "화", "수", "목", "금", "토"];
-                rangeLabels = rangeDates.map(d => {
-                  const dt = new Date(d + "T00:00:00");
-                  return rangeDates.length <= 14
-                    ? `${dt.getMonth() + 1}/${dt.getDate()}(${dayMap[dt.getDay()]})`
-                    : `${dt.getMonth() + 1}/${dt.getDate()}`;
-                });
+              } else if (period === "week") {
+                const ws = weekStart(selDate);
+                for (let i = 11; i >= 0; i--) {
+                  const d = addDays(ws, -7 * i);
+                  points.push({ key: fmt(d), date: d, count: sumRange(d, 7), label: `${d.getMonth() + 1}.${d.getDate()}.`, sub: `${d.getFullYear()}` });
+                }
               } else {
-                rangeDates = weekDays;
-                rangeLabels = dayLabels;
+                for (let i = 11; i >= 0; i--) {
+                  const d = new Date(selDate.getFullYear(), selDate.getMonth() - i, 1);
+                  const days = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+                  points.push({ key: fmt(d), date: d, count: sumRange(d, days), label: `${d.getMonth() + 1}월`, sub: `${d.getFullYear()}` });
+                }
               }
-              const rangeStats = rangeDates.map((date, i) => ({
-                date,
-                label: rangeLabels[i],
-                count: (dailyVisits || {})[date] || 0,
-              }));
-              const maxCount = Math.max(...rangeStats.map(d => d.count), 1);
-              const yMax = Math.ceil(maxCount / 10) * 10 || 10;
-              const totalVisitors = rangeStats.reduce((s, d) => s + d.count, 0);
-              const n = rangeStats.length;
-              const showAsBar = n > 14;
-              const svgW = 700;
-              const svgH = 136;
+              const n = points.length;
+              const selIdx = n - 1;
+              const activeIdx = visitorHover != null && visitorHover < n ? visitorHover : selIdx;
+              const active = points[activeIdx];
+
+              // ─── 헤더 날짜 표기 ───
+              const dot = (d) => `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}.`;
+              const pointTitle = (p) => {
+                if (period === "day") return dot(p.date);
+                if (period === "week") { const e = addDays(p.date, 6); return `${dot(p.date)} ~ ${String(e.getMonth() + 1).padStart(2, "0")}.${String(e.getDate()).padStart(2, "0")}.`; }
+                return `${p.date.getFullYear()}.${String(p.date.getMonth() + 1).padStart(2, "0")}.`;
+              };
+
+              // ─── 이전/다음 이동 ───
+              const shift = (dir) => {
+                let d;
+                if (period === "day") d = addDays(selDate, dir);
+                else if (period === "week") d = addDays(selDate, 7 * dir);
+                else {
+                  d = new Date(selDate.getFullYear(), selDate.getMonth() + dir, 1);
+                  const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+                  d.setDate(Math.min(selDate.getDate(), last));
+                }
+                if (d > todayDate) d = todayDate;
+                setVisitorHover(null);
+                setVisitorDate(fmt(d) === today ? "" : fmt(d));
+              };
+              const canNext = (() => {
+                if (period === "day") return selDate < todayDate;
+                if (period === "week") return weekStart(selDate) < weekStart(todayDate);
+                return selDate.getFullYear() * 12 + selDate.getMonth() < todayDate.getFullYear() * 12 + todayDate.getMonth();
+              })();
+
+              // ─── Y축 범위 (최소~최대 자동, 3개 기준선) ───
+              const counts = points.map(p => p.count);
+              let yMin = Math.min(...counts);
+              let yMax = Math.max(...counts);
+              if (yMax === yMin) { yMin = Math.max(0, yMin - 1); yMax = yMin + 2; }
+              const pad = (yMax - yMin) * 0.12;
+              const lo = Math.max(0, yMin - pad);
+              const hi = yMax + pad;
+              const yPct = (v) => 100 - ((v - lo) / (hi - lo)) * 100;
+              const xPct = (i) => (n === 1 ? 50 : (i / (n - 1)) * 100);
+              const gridVals = [yMax, Math.round((yMax + yMin) / 2), yMin];
+
+              const green = theme.green;
+              const chartH = 190;
+              const labelEvery = 2; // X축 라벨 격일 표시
+
+              const NavBtn = ({ dir, disabled }) => (
+                <button onClick={() => !disabled && shift(dir)} disabled={disabled}
+                  style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "transparent", border: "none", cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.25 : 1, padding: 0 }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={theme.textMuted} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d={dir < 0 ? "M15 4l-8 8 8 8" : "M9 4l8 8-8 8"} />
+                  </svg>
+                </button>
+              );
 
               return (
                 <>
-                  <div style={{ display: "flex", gap: 12, marginBottom: 12, fontSize: 12, color: theme.textMuted }}>
-                    <span>기간: <strong style={{ color: theme.text }}>{rangeDates[0]} ~ {rangeDates[rangeDates.length - 1]}</strong></span>
-                    <span>합계: <strong style={{ color: theme.green }}>{totalVisitors}명</strong></span>
+                  {/* 타이틀 */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "14px 18px", borderBottom: `1px solid ${theme.border}` }}>
+                    <Icons.users size={15} color={green} />
+                    <span style={{ fontSize: 14, fontWeight: 700, color: theme.text }}>방문자 통계</span>
                   </div>
-                  <div style={{ position: "relative", height: 160 }}>
-                    <div style={{ position: "absolute", left: 0, top: 0, bottom: 24, display: "flex", flexDirection: "column", justifyContent: "space-between", fontSize: 10, color: theme.textDim, width: 24, textAlign: "right" }}>
-                      <span>{yMax}</span>
-                      <span>{Math.round(yMax / 2)}</span>
-                      <span>0</span>
+
+                  {/* 날짜 네비게이션 */}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14, padding: "14px 18px", borderBottom: `1px solid ${theme.border}` }}>
+                    <NavBtn dir={-1} />
+                    <span style={{ fontSize: 16, fontWeight: 600, color: theme.text, fontFamily: theme.fontMono, minWidth: period === "week" ? 190 : 110, textAlign: "center" }}>
+                      {pointTitle(points[selIdx])}
+                    </span>
+                    <label style={{ position: "relative", display: "flex", alignItems: "center", cursor: "pointer" }} title="날짜 선택">
+                      <Icons.calendar size={18} color={theme.textMuted} />
+                      <input type="date" value={fmt(selDate)} max={today}
+                        onChange={e => { if (e.target.value) { setVisitorHover(null); setVisitorDate(e.target.value > today ? "" : e.target.value); } }}
+                        onClick={e => { try { e.currentTarget.showPicker(); } catch {} }}
+                        style={{ position: "absolute", inset: 0, opacity: 0, width: "100%", height: "100%", cursor: "pointer", colorScheme: "dark" }}
+                      />
+                    </label>
+                    <NavBtn dir={1} disabled={!canNext} />
+                  </div>
+
+                  <div style={{ padding: 18 }}>
+                    {/* 일간/주간/월간 탭 */}
+                    <div style={{ display: "flex", marginBottom: 18 }}>
+                      {[["day", "일간"], ["week", "주간"], ["month", "월간"]].map(([k, label], i) => {
+                        const on = period === k;
+                        return (
+                          <button key={k} onClick={() => { setVisitorPeriod(k); setVisitorHover(null); }}
+                            style={{
+                              flex: 1, padding: "10px 0", fontSize: 14, fontWeight: on ? 700 : 500, fontFamily: theme.font, cursor: "pointer",
+                              color: on ? green : theme.textMuted, background: on ? `${green}14` : "transparent",
+                              border: `1px solid ${on ? green : theme.border}`, marginLeft: i === 0 ? 0 : -1, position: "relative", zIndex: on ? 1 : 0,
+                              borderRadius: i === 0 ? `${theme.radiusSm}px 0 0 ${theme.radiusSm}px` : i === 2 ? `0 ${theme.radiusSm}px ${theme.radiusSm}px 0` : 0,
+                            }}>
+                            {label}
+                          </button>
+                        );
+                      })}
                     </div>
-                    <div style={{ marginLeft: 28, height: "calc(100% - 24px)", position: "relative" }}>
-                      {[0, 0.5, 1].map((ratio, i) => (
-                        <div key={i} style={{ position: "absolute", left: 0, right: 0, top: `${ratio * 100}%`, borderBottom: `1px ${i === 2 ? "solid" : "dashed"} ${theme.border}`, opacity: 0.5 }} />
-                      ))}
-                      {showAsBar ? (
-                        <div style={{ display: "flex", alignItems: "flex-end", height: "100%", gap: 1 }}>
-                          {rangeStats.map((d, i) => (
-                            <div key={i} title={`${d.date}: ${d.count}명`} style={{ flex: 1, height: `${Math.max((d.count / yMax) * 100, 2)}%`, background: d.date === today ? theme.green : `${theme.green}88`, borderRadius: "2px 2px 0 0", transition: "height 0.3s", minHeight: 2 }} />
-                          ))}
+
+                    {/* 선택 포인트 날짜 + 큰 숫자 */}
+                    <div style={{ fontSize: 12, color: theme.textDim, fontFamily: theme.fontMono, marginBottom: 2 }}>{pointTitle(active)}</div>
+                    <div style={{ fontSize: 26, fontWeight: 800, color: theme.text, fontFamily: theme.fontMono, marginBottom: 14 }}>
+                      {active.count.toLocaleString()}
+                    </div>
+
+                    {/* 선 그래프 */}
+                    <div style={{ position: "relative", height: chartH, margin: "0 8px" }} onMouseLeave={() => setVisitorHover(null)}>
+                      {/* 기준선 + 값 */}
+                      {gridVals.map((v, i) => (
+                        <div key={i} style={{ position: "absolute", left: -8, right: -8, top: `${yPct(v)}%`, borderTop: `1px solid ${theme.border}`, opacity: 0.7 }}>
+                          <span style={{ position: "absolute", left: 0, top: 2, fontSize: 10, color: theme.textDim, fontFamily: theme.fontMono }}>{v.toLocaleString()}</span>
                         </div>
-                      ) : (
-                        <svg width="100%" height="100%" viewBox={`0 0 ${svgW} ${svgH}`} preserveAspectRatio="none" style={{ position: "absolute", top: 0, left: 0 }}>
-                          <polygon
-                            points={
-                              rangeStats.map((d, i) => {
-                                const x = ((i + 0.5) / n) * svgW;
-                                const y = svgH - (d.count / yMax) * svgH;
-                                return `${x},${y}`;
-                              }).join(" ") + ` ${((n - 0.5) / n) * svgW},${svgH} ${(0.5 / n) * svgW},${svgH}`
-                            }
-                            fill={theme.green} opacity={0.1}
-                          />
-                          <polyline
-                            points={rangeStats.map((d, i) => {
-                              const x = ((i + 0.5) / n) * svgW;
-                              const y = svgH - (d.count / yMax) * svgH;
-                              return `${x},${y}`;
-                            }).join(" ")}
-                            fill="none" stroke={theme.green} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round"
-                          />
-                          {rangeStats.map((d, i) => {
-                            const x = ((i + 0.5) / n) * svgW;
-                            const y = svgH - (d.count / yMax) * svgH;
-                            return (
-                              <g key={i}>
-                                <circle cx={x} cy={y} r={d.date === today ? 7 : 5} fill={theme.green} opacity={0.2} />
-                                <circle cx={x} cy={y} r={d.date === today ? 5 : 3.5} fill={d.date === today ? theme.green : theme.card} stroke={theme.green} strokeWidth={2} />
-                                <text x={x} y={y - 12} textAnchor="middle" fontSize="11" fontWeight="700" fill={theme.text} fontFamily={theme.fontMono}>
-                                  {d.count}
-                                </text>
-                              </g>
-                            );
-                          })}
-                        </svg>
-                      )}
-                    </div>
-                    <div style={{ display: "flex", marginLeft: 28, marginTop: 6, overflow: "hidden" }}>
-                      {rangeStats.map((d, i) => (
-                        <span key={i} style={{ flex: 1, textAlign: "center", fontSize: showAsBar ? 9 : 11, fontWeight: d.date === today ? 700 : 400, color: d.date === today ? theme.green : theme.textDim, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                          {showAsBar ? (i % Math.ceil(n / 10) === 0 ? d.label : "") : d.label}
-                        </span>
                       ))}
+
+                      {/* 선택 포인트 세로선 */}
+                      <div style={{ position: "absolute", top: `${yPct(active.count)}%`, bottom: -6, left: `${xPct(activeIdx)}%`, width: 1, background: theme.border, transform: "translateX(-0.5px)" }} />
+
+                      {/* 선 */}
+                      <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: "absolute", inset: 0, overflow: "visible" }}>
+                        <polyline
+                          points={points.map((p, i) => `${xPct(i)},${yPct(p.count)}`).join(" ")}
+                          fill="none" stroke={green} strokeWidth={2} vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round"
+                        />
+                      </svg>
+
+                      {/* 선택 포인트 점 */}
+                      <div style={{ position: "absolute", left: `${xPct(activeIdx)}%`, top: `${yPct(active.count)}%`, width: 14, height: 14, borderRadius: "50%", background: green, transform: "translate(-50%, -50%)", boxShadow: `0 0 0 4px ${green}33`, transition: "left 0.15s, top 0.15s" }} />
+
+                      {/* 호버/클릭 영역 */}
+                      <div style={{ position: "absolute", inset: "0 -8px", display: "flex" }}>
+                        {points.map((p, i) => (
+                          <div key={p.key} title={`${pointTitle(p)} ${p.count.toLocaleString()}명`}
+                            onMouseEnter={() => setVisitorHover(i)}
+                            onClick={() => {
+                              setVisitorHover(null);
+                              const d = period === "week" && addDays(p.date, 6) > todayDate ? todayDate : p.date;
+                              setVisitorDate(fmt(d) === today ? "" : fmt(d));
+                            }}
+                            style={{ flex: 1, cursor: "pointer" }} />
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* X축 라벨 */}
+                    <div style={{ position: "relative", height: 38, margin: "10px 8px 0" }}>
+                      {points.map((p, i) => {
+                        const isActive = i === activeIdx;
+                        const show = isActive || ((n - 1 - i) % labelEvery === 0 && Math.abs(i - activeIdx) > 1);
+                        if (!show) return null;
+                        const showSub = i === 0 || (period === "day" && p.date.getDate() === 1) || (period !== "day" && p.date.getMonth() === 0 && (period === "month" || p.date.getDate() <= 7));
+                        return (
+                          <div key={p.key} style={{ position: "absolute", left: `${xPct(i)}%`, transform: "translateX(-50%)", textAlign: "center", whiteSpace: "nowrap" }}>
+                            <div style={{ fontSize: isActive ? 13 : 11, fontWeight: isActive ? 800 : 400, color: isActive ? theme.text : theme.textDim, fontFamily: theme.fontMono }}>{p.label}</div>
+                            {showSub && <div style={{ fontSize: 10, color: theme.textDim, marginTop: 2 }}>{p.sub}</div>}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </>
