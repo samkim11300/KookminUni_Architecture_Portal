@@ -83,7 +83,7 @@ export default function App() {
   const [certificates, setCertificates] = useState({});
   const [inquiries, setInquiries] = useState([]);
   const [printRequests, setPrintRequests] = useState([]); // 출력 신청 데이터
-  const [visitCount, setVisitCount] = useState(0); // 홈페이지 방문 횟수 (로그인 기반)
+  const [visitCount, setVisitCount] = useState(0); // 홈페이지 방문 횟수 (로그인 화면 진입 기반)
   const [analyticsData, setAnalyticsData] = useState(null); // 관리 대시보드 analytics 스냅샷
   const [visitedUsers, setVisitedUsers] = useState({}); // 방문한 고유 사용자 목록
   const [dailyVisits, setDailyVisits] = useState({}); // 일별 방문자 수 { "2026-02-11": 5, ... }
@@ -1269,22 +1269,35 @@ export default function App() {
       store.localSet("session", null);
       setSavedCredentials(null);
     }
-
-    // 학생 로그인 시 방문 횟수 증가 (로그인할 때마다 +1)
-    if (role === "student" && user?.id) {
-      const currentCount = await store.get("visitCount") || 0;
-      const newCount = currentCount + 1;
-      setVisitCount(newCount);
-      await store.set("visitCount", newCount);
-
-      // 일별 방문자 수 기록
-      const todayKey = dateStr();
-      const currentDailyVisits = await store.get("dailyVisits") || {};
-      const updatedDailyVisits = { ...currentDailyVisits, [todayKey]: (currentDailyVisits[todayKey] || 0) + 1 };
-      setDailyVisits(updatedDailyVisits);
-      await store.set("dailyVisits", updatedDailyVisits);
-    }
   };
+
+  // ─── 방문자 집계: 로그인 화면 진입 시 +1 (브라우저 탭 세션당 1회) ───
+  // 로그아웃/뒤로가기/도움말 복귀로 로그인 화면에 다시 와도 중복 집계하지 않음
+  useEffect(() => {
+    if (!dataLoaded || page !== "login") return;
+    const VISIT_COUNTED_KEY = "visitCountedThisSession";
+    try {
+      if (sessionStorage.getItem(VISIT_COUNTED_KEY)) return;
+      sessionStorage.setItem(VISIT_COUNTED_KEY, "1");
+    } catch { }
+    (async () => {
+      try {
+        const currentCount = await store.get("visitCount") || 0;
+        const newCount = currentCount + 1;
+        setVisitCount(newCount);
+        await store.set("visitCount", newCount);
+
+        // 일별 방문자 수 기록
+        const todayKey = dateStr();
+        const currentDailyVisits = await store.get("dailyVisits") || {};
+        const updatedDailyVisits = { ...currentDailyVisits, [todayKey]: (currentDailyVisits[todayKey] || 0) + 1 };
+        setDailyVisits(updatedDailyVisits);
+        await store.set("dailyVisits", updatedDailyVisits);
+      } catch (e) {
+        console.error("방문자 집계 실패:", e);
+      }
+    })();
+  }, [dataLoaded, page]);
 
   const handleLogout = () => {
     setCurrentUser(null);
