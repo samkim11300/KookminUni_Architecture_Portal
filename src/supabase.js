@@ -25,10 +25,14 @@ export const supabaseStore = {
   /**
    * Retrieve data by key
    * @param {string} key - The key to retrieve
+   * @param {{ throwOnError?: boolean }} options - Throw on read failures when fresh server data is required
    * @returns {Promise<any|null>} The value associated with the key, or null if not found
    */
-  async get(key) {
-    if (!supabase) return null;
+  async get(key, { throwOnError = false } = {}) {
+    if (!supabase) {
+      if (throwOnError) throw new Error('Supabase not configured');
+      return null;
+    }
     try {
       const { data, error } = await supabase
         .from('portal_data')
@@ -43,6 +47,7 @@ export const supabaseStore = {
 
       return data?.value || null
     } catch (error) {
+      if (throwOnError) throw error;
       console.error(`Supabase get error (${key}):`, error)
       return null
     }

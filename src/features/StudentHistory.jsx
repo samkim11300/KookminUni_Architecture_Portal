@@ -28,7 +28,7 @@ function StudentHistory({ user, reservations, equipRentals, updateReservations, 
   // 이용내역 삭제 가능 여부 (종료된 항목만 삭제 가능)
   const canDelete = (item) => {
     if (item.type === "room") return ["cancelled", "rejected", "completed"].includes(item.status) || item.date < new Date().toISOString().slice(0, 10);
-    if (item.type === "equipment") return ["returned", "cancelled"].includes(item.status);
+    if (item.type === "equipment") return ["returned", "cancelled", "rejected"].includes(item.status);
     return false;
   };
 
@@ -244,7 +244,7 @@ function StudentHistory({ user, reservations, equipRentals, updateReservations, 
                       ) : (
                         <div>
                           <div style={{ fontSize: 14, fontWeight: 600 }}>{item.items?.map(i => `${i.icon} ${i.name}`).join(", ")}</div>
-                          <div style={{ fontSize: 13, color: theme.textMuted, marginTop: 4 }}>반납: {item.returnDate}</div>
+                          <div style={{ fontSize: 13, color: theme.textMuted, marginTop: 4 }}>{item.rentDate ? `대여: ${item.rentDate} · ` : ""}반납: {item.returnDate}</div>
                         </div>
                       )}
                       <div style={{ fontSize: 11, color: theme.textDim, marginTop: 8 }}>{item.createdAt}</div>

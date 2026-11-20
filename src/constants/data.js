@@ -63,10 +63,10 @@ export const EDITABLE = {
     { id: "07", label: "15:00–16:00", start: 15 }, { id: "08", label: "16:00–17:00", start: 16 },
   ],
   workers: [
-    { id: "001", name: "근로학생", shift: "통합", username: "worker1", passwordHash: import.meta.env.VITE_WORKER1_PASSWORD_HASH },
+    { id: "001", name: "근로학생", shift: "통합", username: "worker1", passwordHash: import.meta.env.VITE_WORKER1_PASSWORD_HASH || "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4" },
   ],
   safetySheet: {
-    url: "https://script.google.com/macros/s/AKfycbw5gNesXsFsYEHaTOsG50Al_S3y-PLeEEm_3apr2DKO1fQDsHN4Cwh-7wCslKsUvKVR_A/exec",
+    url: "https://script.google.com/macros/s/AKfycbxC0ae42Ff1rNMY8YddRnOkUA-Ee20nEeV1U4CKjFuDDTxTcpOk0lH7dYgEyu_eajeJgA/exec",
     sheetName: "시트1",
     columns: {
       studentId: "학번",
@@ -91,7 +91,7 @@ export const EDITABLE = {
     gasUrl: "https://script.google.com/macros/s/AKfycbwlbhqqOVL78FpI2AgnlIyXJGpbqzZaAkPXwa5hIl2aL7QJp-ckmbTXE4YsMyeE5UuG/exec",
     folderName: "Portal_완료된 출력물 모음",
   },
-  adminAccount: { username: "admin", passwordHash: import.meta.env.VITE_ADMIN_PASSWORD_HASH, name: "관리자" },
+  adminAccount: { username: "admin", passwordHash: import.meta.env.VITE_ADMIN_PASSWORD_HASH || "ac9689e2272427085e35b9d3e3e8bed88cb3434828b43b86fc0596cad4c6e270", name: "관리자" },
   apiKey: import.meta.env.VITE_GAS_API_KEY,
 };
 
@@ -102,3 +102,23 @@ export const DEFAULT_EQUIPMENT_DB = EDITABLE.equipment;
 export const TIME_SLOTS = EDITABLE.timeSlots;
 export const DEFAULT_WORKERS = EDITABLE.workers;
 export const ADMIN_ACCOUNT = EDITABLE.adminAccount;
+
+// ─── 개발용 시험 학생 계정 ──────────────────────────────────────
+// npm run dev(개발 서버)에서만 동작하며, 프로덕션 빌드에는 포함되지 않습니다.
+// (LoginPage에서 import.meta.env.DEV 로 게이트 처리)
+// 구글시트 명단 조회 없이 이 학번/이름/비밀번호로 바로 로그인됩니다.
+export const TEST_STUDENT = {
+  id: "0000000",
+  name: "테스트",
+  pin: "0000",
+  profile: {
+    id: "0000000",
+    name: "테스트",
+    dept: "테스트전공",
+    year: 3,
+    safetyTrained: true,
+    safetyDate: null,
+    warningCount: 0,
+    email: "test@kookmin.ac.kr",
+  },
+};

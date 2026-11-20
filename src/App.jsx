@@ -5,6 +5,8 @@ import { EDITABLE, ROOMS, DEFAULT_EQUIPMENT_DB, DEFAULT_WORKERS } from "./consta
 import theme, { darkColors, lightColors } from "./constants/theme";
 import { uid, ts, dateStr, ACTIVE_PORTAL_SESSION_KEY, emailTemplate, sha256 } from "./utils/helpers";
 import store from "./utils/storage";
+import { verifyStudentInSheet as verifySheetStudent } from "./utils/studentVerification";
+import { createOverdueChecker } from "./utils/overdueRentals";
 import PortalLoadingScreen from "./components/PortalLoadingScreen";
 import AnimatedBorderButton from "./components/AnimatedBorderButton";
 import LoginPage from "./pages/LoginPage";
@@ -63,12 +65,18 @@ export default function App() {
   const [equipRentals, setEquipRentals] = useState([]);
   const [logs, setLogs] = useState([]);
   const [notifications, setNotifications] = useState([]);
+  // 알림 "읽음" 상태는 기기별 로컬에 저장한다.
+  // (notifications 목록은 여러 클라이언트가 공유하는 Firebase 키라서, 다른 기기가 새 알림을
+  //  추가하며 목록 전체를 덮어쓰면 이전에 읽음 처리한 알림이 다시 안읽음으로 되살아나기 때문)
+  const [readNotifIds, setReadNotifIds] = useState(() => {
+    const saved = store.localGet("readNotifIds");
+    return new Set(Array.isArray(saved) ? saved : []);
+  });
   const [workers, setWorkers] = useState(DEFAULT_WORKERS);
   const [sheetConfig, setSheetConfig] = useState({
     reservationWebhookUrl: "https://script.google.com/macros/s/AKfycbwyzzFFUQRLjITW6D6YVw4RzVoB4ye80-tb7Tsan4RspCPAIdq3pV4C9_ixeGp6Hdotpg/exec",
     printWebhookUrl: "https://script.google.com/macros/s/AKfycbxoF7nFIP6neZjGegxwwMYZn5FIt2nXsoPsXUIsWxv5nqmcglf7i9K34PcgL2XutNwD/exec"
   });
-  const [overdueFlags, setOverdueFlags] = useState({});
   const [warnings, setWarnings] = useState({});
   const [blacklist, setBlacklist] = useState({});
   const [printBlacklist, setPrintBlacklist] = useState({});
@@ -87,12 +95,21 @@ export default function App() {
   const [bannerText, setBannerText] = useState({
 
   });
+  const DEFAULT_PRINT_NOTICE = useMemo(() => ({
+    bankAccount: "카카오뱅크 3333-35-7572363 [김경호]",
+    operatingHours: "평일 10:00~17:00 (점심시간 12:00~13:00 제외)",
+    pickupLocation: "건축대학 출력실 (복지관 6층)",
+    noticeText: "표 기준은 1장 단가이며, +600은 추가 600mm 길이 기준입니다.",
+  }), []);
+  const [printNotice, setPrintNotice] = useState(DEFAULT_PRINT_NOTICE);
   const [dataLoaded, setDataLoaded] = useState(false);
 
+  const lastLocalEqWrite = useRef(0);
   const [equipmentDB, setEquipmentDBRaw] = useState(DEFAULT_EQUIPMENT_DB);
   const setEquipmentDB = useCallback((updater) => {
     setEquipmentDBRaw(prev => {
       const next = typeof updater === "function" ? updater(prev) : updater;
+      lastLocalEqWrite.current = Date.now();
       store.set("equipmentDB", next);
       supabaseStore.set("portal/equipmentDB", next).catch(() => { });
       return next;
@@ -151,7 +168,7 @@ export default function App() {
         setDataLoaded(true);
 
         // 2단계: 나머지 데이터 백그라운드 로드 (화면 표시 후)
-        const [wk, warn, blk, certs, res, eq, lg, notif, sheet, overdue, inq, prints, visits, visitors, analytics, eqDB, dVisits, savedRoomStatus, savedCategoryOrder, pblk, savedBanner] = await Promise.all([
+        const [wk, warn, blk, certs, res, eq, lg, notif, sheet, inq, prints, visits, visitors, analytics, eqDB, dVisits, savedRoomStatus, savedCategoryOrder, pblk, savedBanner, savedPrintNotice] = await Promise.all([
           store.get("workers"),
           store.get("warnings"),
           store.get("blacklist"),
@@ -161,7 +178,6 @@ export default function App() {
           store.get("logs"),
           store.get("notifications"),
           store.get("sheetConfig"),
-          store.get("overdueFlags"),
           store.get("inquiries"),
           store.get("printRequests_v2"),
           store.get("visitCount"),
@@ -173,6 +189,7 @@ export default function App() {
           store.get("categoryOrder"),
           store.get("printBlacklist"),
           store.get("bannerText"),
+          store.get("printNotice"),
         ]);
         // 근로학생: Supabase를 단일 진실 원천(SSOT)으로 사용
         // password → passwordHash 마이그레이션 헬퍼
@@ -214,6 +231,15 @@ export default function App() {
           setBannerText(savedBanner);
           supabaseStore.set("portal/bannerText", savedBanner).catch(() => { });
         }
+        // 출력 안내 및 계좌: Supabase SSOT
+        const serverPrintNotice = await supabaseStore.get("portal/printNotice");
+        if (serverPrintNotice && typeof serverPrintNotice === "object" && serverPrintNotice.bankAccount) {
+          setPrintNotice(serverPrintNotice);
+          store.set("printNotice", serverPrintNotice).catch(() => { });
+        } else if (savedPrintNotice && typeof savedPrintNotice === "object" && savedPrintNotice.bankAccount) {
+          setPrintNotice(savedPrintNotice);
+          supabaseStore.set("portal/printNotice", savedPrintNotice).catch(() => { });
+        }
         if (certs) setCertificates(certs);
         if (res) setReservations(res);
         if (eq) setEquipRentals(eq);
@@ -235,9 +261,17 @@ export default function App() {
           await store.set("__student_keys_migrated_v1__", true);
         }
         if (lg) setLogs(lg);
-        if (notif) setNotifications(notif);
+        if (notif) {
+          setNotifications(notif);
+          // 더 이상 존재하지 않는 알림의 읽음 기록은 정리한다.
+          const liveIds = new Set(notif.map(n => n.id));
+          setReadNotifIds(prev => {
+            const pruned = new Set([...prev].filter(id => liveIds.has(id)));
+            if (pruned.size !== prev.size) store.localSet("readNotifIds", [...pruned]);
+            return pruned;
+          });
+        }
         if (sheet) setSheetConfig(sheet);
-        if (overdue) setOverdueFlags(overdue);
         if (inq) setInquiries(inq);
         // 출력 신청: Supabase + 로컬 중 최신 데이터 사용
         const serverPrintsRaw = await supabaseStore.get("portal/printRequests_v2");
@@ -290,11 +324,35 @@ export default function App() {
           setRoomStatus(prev => ({ ...prev, ...savedRoomStatus }));
           supabaseStore.set("portal/roomStatus", { ...roomStatus, ...savedRoomStatus }).catch(() => { });
         }
-        // 물품 DB: Supabase를 단일 진실 원천(SSOT)으로 사용
+        // 물품 DB: Supabase와 로컬 storage 중 최신/병합 데이터 사용
         const serverEqDB = await supabaseStore.get("portal/equipmentDB");
-        const resolvedEqDB = Array.isArray(serverEqDB) && serverEqDB.length > 0
-          ? serverEqDB
-          : Array.isArray(eqDB) && eqDB.length > 0 ? eqDB : null;
+        const parsedServerEq = parseArrayData(serverEqDB);
+        const parsedLocalEq = parseArrayData(eqDB);
+
+        let resolvedEqDB = null;
+        if (parsedServerEq && parsedServerEq.length > 0) {
+          if (parsedLocalEq && parsedLocalEq.length > 0) {
+            // 로컬과 서버의 아이템을 ID 기준 병합 (로컬에만 추가된 아이템이 유실되지 않도록)
+            const map = new Map(parsedServerEq.map(item => [item.id, item]));
+            let hasLocalExtra = false;
+            for (const item of parsedLocalEq) {
+              if (!map.has(item.id)) {
+                map.set(item.id, item);
+                hasLocalExtra = true;
+              }
+            }
+            resolvedEqDB = Array.from(map.values());
+            if (hasLocalExtra) {
+              supabaseStore.set("portal/equipmentDB", resolvedEqDB).catch(() => { });
+              store.set("equipmentDB", resolvedEqDB);
+            }
+          } else {
+            resolvedEqDB = parsedServerEq;
+          }
+        } else if (parsedLocalEq && parsedLocalEq.length > 0) {
+          resolvedEqDB = parsedLocalEq;
+        }
+
         if (resolvedEqDB) {
           // 기본 물품 중 저장 데이터에 없는 항목이 있으면 코드가 업데이트된 것이므로 병합
           const savedIdSet = new Set(resolvedEqDB.map(e => e.id));
@@ -306,12 +364,13 @@ export default function App() {
             supabaseStore.set("portal/equipmentDB", merged).catch(() => { });
           } else {
             setEquipmentDBRaw(resolvedEqDB);
-            if (!serverEqDB) {
+            if (!parsedServerEq || parsedServerEq.length === 0) {
               // 로컬에만 있던 데이터를 Supabase에 동기화
               supabaseStore.set("portal/equipmentDB", resolvedEqDB).catch(() => { });
             }
           }
         } else {
+          setEquipmentDBRaw(DEFAULT_EQUIPMENT_DB);
           store.set("equipmentDB", DEFAULT_EQUIPMENT_DB);
           supabaseStore.set("portal/equipmentDB", DEFAULT_EQUIPMENT_DB).catch(() => { });
         }
@@ -381,9 +440,30 @@ export default function App() {
         const wkItems = parseArrayData(serverWorkers);
         if (wkItems && wkItems.length > 0) setWorkers(wkItems);
 
-        // 물품 DB
-        const eqItems = parseArrayData(serverEqDB);
-        if (eqItems && eqItems.length > 0) setEquipmentDBRaw(eqItems);
+        // 물품 DB (로컬 쓰기 직후 15초 이내는 건너뛰고, 서버 수신 시 로컬 아이템 병합)
+        if (Date.now() - lastLocalEqWrite.current > 15000) {
+          const eqItems = parseArrayData(serverEqDB);
+          if (eqItems && eqItems.length > 0) {
+            setEquipmentDBRaw(prev => {
+              if (!prev || prev.length === 0) return eqItems;
+              // 서버 데이터와 로컬 아이템 병합 (로컬에만 있는 새로 추가된 물품 유지)
+              const map = new Map(eqItems.map(item => [item.id, item]));
+              let extraFound = false;
+              for (const item of prev) {
+                if (!map.has(item.id)) {
+                  map.set(item.id, item);
+                  extraFound = true;
+                }
+              }
+              const merged = Array.from(map.values());
+              if (extraFound) {
+                supabaseStore.set("portal/equipmentDB", merged).catch(() => { });
+                store.set("equipmentDB", merged);
+              }
+              return merged;
+            });
+          }
+        }
 
         // 실기실 ON/OFF
         let roomData = serverRoomStatus;
@@ -504,14 +584,6 @@ export default function App() {
     });
   }, [persist]);
 
-  const updateOverdueFlags = useCallback((updater) => {
-    setOverdueFlags(prev => {
-      const next = typeof updater === "function" ? updater(prev) : updater;
-      persist("overdueFlags", next);
-      return next;
-    });
-  }, [persist]);
-
   const updateWarnings = useCallback((updater) => {
     setWarnings(prev => {
       const next = typeof updater === "function" ? updater(prev) : updater;
@@ -570,30 +642,134 @@ export default function App() {
     });
   }, [persist]);
 
+  const updatePrintNotice = useCallback((updater) => {
+    setPrintNotice(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      persist("printNotice", next);
+      supabaseStore.set("portal/printNotice", next).catch(() => { });
+      return next;
+    });
+  }, [persist]);
+
+  // ─── 학기 초기화 ─────────────────────────────────────────────────
+  const onResetSemester = useCallback(async () => {
+    const results = { certificates: false, pins: false, warnings: false, blacklist: false, sheet: false };
+    try {
+      // 1. certificates 초기화
+      updateCertificates({});
+      results.certificates = true;
+
+      // 2. studentPin_* 키 삭제
+      try {
+        const pinKeys = await store.listByPrefix("studentPin_");
+        if (pinKeys.length > 0) {
+          await Promise.all(pinKeys.map(k => store.set(k.name || k, null)));
+        }
+        results.pins = true;
+      } catch (e) {
+        console.error("studentPin 삭제 실패:", e);
+      }
+
+      // 3. warnings 초기화
+      updateWarnings({});
+      results.warnings = true;
+
+      // 4. blacklist 초기화
+      updateBlacklist({});
+      results.blacklist = true;
+
+      // 5. 구글시트 안전교육이수 데이터 초기화
+      const sheetUrl = EDITABLE.safetySheet?.url?.trim();
+      if (sheetUrl) {
+        try {
+          const res = await fetch(sheetUrl, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain;charset=UTF-8" },
+            body: JSON.stringify({
+              action: "clear_safety_sheet",
+              key: EDITABLE.apiKey,
+              sheetName: EDITABLE.safetySheet?.sheetName || "",
+            }),
+          });
+          const text = await res.text();
+          let result = null;
+          try { result = JSON.parse(text); } catch { }
+          if (result?.error) {
+            console.error("구글시트 초기화 실패:", result.error);
+          } else {
+            results.sheet = true;
+          }
+        } catch (err) {
+          console.error("구글시트 초기화 요청 실패:", err);
+        }
+      }
+
+      return results;
+    } catch (err) {
+      console.error("학기 초기화 중 오류:", err);
+      return results;
+    }
+  }, [updateCertificates, updateWarnings, updateBlacklist]);
+
   const updatePrintRequests = useCallback((updater) => {
     setPrintRequests(prev => {
-      const next = typeof updater === "function" ? updater(prev) : updater;
+      const prevArr = Array.isArray(prev) ? prev : [];
+      const nextRaw = typeof updater === "function" ? updater(prevArr) : updater;
+      const nextArr = Array.isArray(nextRaw) ? nextRaw : [];
       lastLocalPrintWrite.current = Date.now();
 
-      // 로컬 + Supabase 동시 쓰기 (실패 시 재시도)
+      // prev → next 차이로 "의도한 변경"만 추출 (stale 스냅샷 전체 덮어쓰기 방지)
+      const prevById = new Map(prevArr.map(r => [r.id, r]));
+      const nextById = new Map(nextArr.map(r => [r.id, r]));
+      const removedIds = [...prevById.keys()].filter(id => !nextById.has(id));
+      // 새로 추가됐거나(이전에 없던 id) 객체 참조가 바뀐(수정된) 항목만 upsert 대상
+      const upserted = nextArr.filter(r => {
+        const before = prevById.get(r.id);
+        return !before || before !== r;
+      });
+
+      // 서버 최신 상태를 기준으로 변경분만 병합하여 기록
       const syncToServer = async () => {
         try {
-          await persist("printRequests_v2", next);
+          const serverRaw = await supabaseStore.get("portal/printRequests_v2");
+          const serverArr = parseArrayData(serverRaw) || [];
+          // 서버 데이터를 가져오지 못한 경우(네트워크 오류 등)엔 로컬 next로 폴백
+          const base = (serverArr.length > 0 || serverRaw == null)
+            ? new Map(serverArr.map(r => [r.id, r]))
+            : new Map(nextArr.map(r => [r.id, r]));
+
+          for (const id of removedIds) base.delete(id);
+          for (const r of upserted) base.set(r.id, r);
+
+          // 최신 신청이 앞으로 오도록 createdAt 내림차순 정렬
+          const merged = [...base.values()].sort((a, b) =>
+            String(b.createdAt || "").localeCompare(String(a.createdAt || ""))
+          );
+
+          // 병합 결과를 로컬 state에도 반영 (서버의 다른 변경분 흡수)
+          setPrintRequests(merged);
+
+          try {
+            await persist("printRequests_v2", merged);
+          } catch (e) {
+            console.error("[PRINT SYNC] persist 실패:", e);
+          }
+          let ok = await supabaseStore.set("portal/printRequests_v2", merged);
+          if (!ok) {
+            console.warn("[PRINT SYNC] supabase 1차 쓰기 실패, 1초 후 재시도...");
+            await new Promise(r => setTimeout(r, 1000));
+            ok = await supabaseStore.set("portal/printRequests_v2", merged);
+            if (!ok) console.error("[PRINT SYNC] supabase 재시도도 실패");
+          }
+          console.log("[PRINT SYNC] 병합 완료, items:", merged.length, "(추가/수정:", upserted.length, "삭제:", removedIds.length, ") supabase:", ok ? "성공" : "실패");
         } catch (e) {
-          console.error("[PRINT SYNC] persist 실패:", e);
+          console.error("[PRINT SYNC] 병합 동기화 실패:", e);
         }
-        let ok = await supabaseStore.set("portal/printRequests_v2", next);
-        if (!ok) {
-          console.warn("[PRINT SYNC] supabase 1차 쓰기 실패, 1초 후 재시도...");
-          await new Promise(r => setTimeout(r, 1000));
-          ok = await supabaseStore.set("portal/printRequests_v2", next);
-          if (!ok) console.error("[PRINT SYNC] supabase 재시도도 실패");
-        }
-        console.log("[PRINT SYNC] 완료, items:", next?.length, "supabase:", ok ? "성공" : "실패");
       };
       syncToServer();
 
-      return next;
+      // 낙관적 업데이트: 우선 next를 반영하고, 병합 결과가 오면 위에서 덮어씀
+      return nextArr;
     });
   }, [persist]);
 
@@ -698,69 +874,30 @@ export default function App() {
   }, [dataLoaded, reservations, equipRentals, printRequests, visitCount]);
 
   const markNotifRead = useCallback((id) => {
-    setNotifications(prev => {
-      const next = prev.map(n => n.id === id ? { ...n, read: true } : n);
-      persist("notifications", next);
+    setReadNotifIds(prev => {
+      if (prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.add(id);
+      store.localSet("readNotifIds", [...next]);
       return next;
     });
-  }, [persist]);
+  }, []);
 
   const markAllNotifsRead = useCallback(() => {
-    setNotifications(prev => {
-      const next = prev.map(n => ({ ...n, read: true }));
-      persist("notifications", next);
+    setReadNotifIds(prev => {
+      const next = new Set(prev);
+      notifications.forEach(n => next.add(n.id));
+      store.localSet("readNotifIds", [...next]);
       return next;
     });
-  }, [persist]);
+  }, [notifications]);
 
-  const verifyStudentInSheet = useCallback(async (studentId, studentName) => {
-    const cfg = EDITABLE?.safetySheet;
-    const url = cfg?.url?.trim();
-    if (!url) return { ok: false, error: "연동 URL이 설정되지 않았습니다." };
-    const payload = {
-      action: "verify_student",
-      key: EDITABLE.apiKey,
-      studentId: studentId?.trim(),
-      studentName: studentName?.trim(),
-      sheetName: cfg?.sheetName,
-      columns: cfg?.columns,
-    };
-    try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain;charset=UTF-8" },
-        body: JSON.stringify(payload),
-      });
-      const text = await res.text();
-      let data = null;
-      try { data = JSON.parse(text); } catch { data = null; }
-      if (!res.ok) return { ok: false, error: data?.error || text || `HTTP ${res.status}` };
-      if (!data) return { ok: false, error: "응답 형식 오류" };
-      if (!data.found) return { ok: false, error: "안전교육 이수자 명단에 없습니다." };
-      return { ok: true, student: data.student || {}, safetyTrained: data.safetyTrained ?? true };
-    } catch (err) {
-      // POST 실패 시 GET 방식으로 재시도 (preflight/CORS 우회)
-      try {
-        const params = new URLSearchParams({
-          action: "verify_student",
-          key: EDITABLE.apiKey,
-          studentId: payload.studentId || "",
-          studentName: payload.studentName || "",
-          sheetName: payload.sheetName || "",
-        });
-        const res = await fetch(`${url}?${params.toString()}`, { method: "GET" });
-        const text = await res.text();
-        let data = null;
-        try { data = JSON.parse(text); } catch { data = null; }
-        if (!res.ok) return { ok: false, error: data?.error || text || `HTTP ${res.status}` };
-        if (!data) return { ok: false, error: "응답 형식 오류" };
-        if (!data.found) return { ok: false, error: "안전교육 이수자 명단에 없습니다." };
-        return { ok: true, student: data.student || {}, safetyTrained: data.safetyTrained ?? true };
-      } catch (err2) {
-        return { ok: false, error: err2?.message || err?.message || "연동 실패" };
-      }
-    }
-  }, []);
+  const verifyStudentInSheet = useCallback((studentId, studentName) => verifySheetStudent({
+    config: EDITABLE.safetySheet,
+    apiKey: EDITABLE.apiKey,
+    studentId,
+    studentName,
+  }), []);
 
   const sendEmailNotification = useCallback(async ({ to, subject, body }) => {
     const cfg = EDITABLE?.emailNotify;
@@ -813,42 +950,40 @@ export default function App() {
     }
   }, []);
 
-  const overdueFlagsRef = useRef(overdueFlags);
-  useEffect(() => { overdueFlagsRef.current = overdueFlags; }, [overdueFlags]);
-
+  // 반납 여부와 발송 이력은 반드시 서버에서 조회한다.
+  // 오래 열린 탭의 대여 목록이나 storage의 로컬 fallback으로 이메일을 보내면 안 된다.
   useEffect(() => {
-    if (!equipRentals?.length) return;
-    const today = dateStr();
-    const currentFlags = overdueFlagsRef.current;
-    const newFlags = { ...currentFlags };
-    let changed = false;
-    equipRentals.forEach(r => {
-      if (r.status === "returned" || r.status === "cancelled") return;
-      if (r.returnDate && r.returnDate < today) {
-        if (!newFlags[r.id]) {
-          newFlags[r.id] = true;
-          changed = true;
+    const checker = createOverdueChecker({
+      readRentals: () => supabaseStore.get("portal/equipRentals", { throwOnError: true }),
+      readFlags: () => supabaseStore.get("portal/overdueFlags", { throwOnError: true }),
+      writeFlags: flags => supabaseStore.set("portal/overdueFlags", flags),
+      onError: error => console.warn("[Overdue] 서버 확인 또는 알림 처리 실패:", error),
+      notify: async r => {
+        const result = await sendEmailNotification({
+          subject: `[국민대 건축대학] 물품 반납 지연 안내`,
+          body: emailTemplate(r.studentName, [
+            "물품 대여 반납 기한이 지났습니다.",
+            "",
+            "[대여 정보]",
+            `- 학생: ${r.studentName} (${r.studentId})`,
+            `- 전공/학년: ${r.studentDept || "-"}`,
+            `- 대여 품목: ${r.items?.map(i => i.name).join(", ")}`,
+            `- 반납 예정일: ${r.returnDate}`,
+            "",
+            "즉시 반납 부탁드립니다.",
+          ].join("\n")),
+        });
+        if (result?.ok) {
           addNotification(`⏰ 연체 알림: ${r.studentName} → ${r.items?.map(i => i.name).join(", ")} (반납일 ${r.returnDate})`, "equipment", true);
           addLog(`[연체] ${r.studentName}(${r.studentId}) → ${r.items?.map(i => i.name).join(", ")} | 반납일 ${r.returnDate}`, "equipment", { studentId: r.studentId });
-          sendEmailNotification({
-            subject: `[국민대 건축대학] 물품 반납 지연 안내`,
-            body: emailTemplate(r.studentName, [
-              "물품 대여 반납 기한이 지났습니다.",
-              "",
-              "[대여 정보]",
-              `- 학생: ${r.studentName} (${r.studentId})`,
-              `- 전공/학년: ${r.studentDept || "-"}`,
-              `- 대여 품목: ${r.items?.map(i => i.name).join(", ")}`,
-              `- 반납 예정일: ${r.returnDate}`,
-              "",
-              "즉시 반납 부탁드립니다.",
-            ].join("\n")),
-          });
         }
-      }
+        return result;
+      },
     });
-    if (changed) updateOverdueFlags(newFlags);
-  }, [equipRentals, addNotification, addLog, sendEmailNotification, updateOverdueFlags]);
+    checker.run();
+    const timerId = setInterval(() => checker.run(), 60 * 1000);
+    return () => { checker.dispose(); clearInterval(timerId); };
+  }, [addNotification, addLog, sendEmailNotification]);
 
   const syncReservationToSheet = useCallback(async (reservation) => {
     const url = sheetConfig?.reservationWebhookUrl?.trim();
@@ -1004,6 +1139,7 @@ export default function App() {
           studentEmail: rental.studentEmail || "",
           itemName: rental.items?.[0]?.name || "",
           qty: rental.items?.[0]?.qty || 1,
+          rentDate: rental.rentDate || "",
           returnDate: rental.returnDate,
           note: rental.note || "",
           status: rental.status,
@@ -1035,6 +1171,7 @@ export default function App() {
               studentEmail: rental.studentEmail || "",
               itemName: rental.items?.[0]?.name || "",
               qty: rental.items?.[0]?.qty || 1,
+              rentDate: rental.rentDate || "",
               returnDate: rental.returnDate,
               note: rental.note || "",
               status: rental.status,
@@ -1187,7 +1324,12 @@ export default function App() {
     await Promise.all(cleanupPromises);
   };
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  // 읽음 상태(기기별 로컬)를 공유 알림 목록에 합쳐서 화면에 전달한다.
+  const notificationsView = useMemo(
+    () => notifications.map(n => ({ ...n, read: n.read || readNotifIds.has(n.id) })),
+    [notifications, readNotifIds]
+  );
+  const unreadCount = notificationsView.filter(n => !n.read).length;
 
   if (!dataLoaded) return <PortalLoadingScreen isDark={isDark} />;
 
@@ -1262,6 +1404,7 @@ export default function App() {
             printRequests={printRequests}
             updatePrintRequests={updatePrintRequests}
             roomStatus={roomStatus}
+            printNotice={printNotice}
             isMobile={isMobile}
             isDark={isDark} toggleDark={toggleDark}
           />
@@ -1272,13 +1415,21 @@ export default function App() {
             reservations={reservations} updateReservations={updateReservations}
             equipRentals={equipRentals} updateEquipRentals={updateEquipRentals}
             equipmentDB={equipmentDB} setEquipmentDB={setEquipmentDB}
+            categoryOrder={categoryOrder} setCategoryOrder={setCategoryOrder}
             logs={logs} addLog={addLog}
-            notifications={notifications} markNotifRead={markNotifRead} markAllNotifsRead={markAllNotifsRead}
+            notifications={notificationsView} markNotifRead={markNotifRead} markAllNotifsRead={markAllNotifsRead}
             unreadCount={unreadCount}
             sendEmailNotification={sendEmailNotification}
             inquiries={inquiries} updateInquiries={updateInquiries}
             printRequests={printRequests} updatePrintRequests={updatePrintRequests} refreshPrintRequests={refreshPrintRequests}
             archivePrintsToDrive={archivePrintsToDrive}
+            certificates={certificates} updateCertificates={updateCertificates}
+            warnings={warnings} updateWarnings={updateWarnings}
+            blacklist={blacklist} updateBlacklist={updateBlacklist}
+            printBlacklist={printBlacklist} updatePrintBlacklist={updatePrintBlacklist}
+            bannerText={bannerText} updateBannerText={updateBannerText}
+            printNotice={printNotice} updatePrintNotice={updatePrintNotice}
+            onResetSemester={onResetSemester}
             visitCount={visitCount}
             analyticsData={analyticsData}
             dailyVisits={dailyVisits}
@@ -1293,9 +1444,6 @@ export default function App() {
             workers={workers} updateWorkers={updateWorkers}
             logs={logs} addLog={addLog} updateLogs={updateLogs}
             sheetConfig={sheetConfig} updateSheetConfig={updateSheetConfig}
-            warnings={warnings} updateWarnings={updateWarnings}
-            blacklist={blacklist} updateBlacklist={updateBlacklist}
-            printBlacklist={printBlacklist} updatePrintBlacklist={updatePrintBlacklist}
             certificates={certificates}
             updateCertificates={updateCertificates}
             inquiries={inquiries} updateInquiries={updateInquiries}
@@ -1304,7 +1452,6 @@ export default function App() {
             categoryOrder={categoryOrder} setCategoryOrder={setCategoryOrder}
             roomStatus={roomStatus} updateRoomStatus={updateRoomStatus}
             formFiles={formFiles} updateFormFiles={updateFormFiles}
-            bannerText={bannerText} updateBannerText={updateBannerText}
             isMobile={isMobile}
             isDark={isDark} toggleDark={toggleDark}
           />

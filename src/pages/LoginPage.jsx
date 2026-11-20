@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { EDITABLE, ROOMS, ADMIN_ACCOUNT, STUDENTS_DB } from "../constants/data";
+import { EDITABLE, ROOMS, ADMIN_ACCOUNT, STUDENTS_DB, TEST_STUDENT } from "../constants/data";
 import theme from "../constants/theme";
 import { uid, ts, sha256 } from "../utils/helpers";
 import store from "../utils/storage";
@@ -167,6 +167,22 @@ function LoginPage({ onLogin, onReset, onHelp, workers, verifyStudentInSheet, re
     const snameTrim = sname.trim();
     if (!sidTrim || !snameTrim) return;
     setError("");
+    // ── 개발용 시험 계정: npm run dev에서만 동작 (프로덕션 빌드 제외) ──
+    // 구글시트 명단 조회/블랙리스트/이수증 검증을 우회해 바로 로그인
+    if (import.meta.env.DEV && sidTrim === TEST_STUDENT.id && snameTrim === TEST_STUDENT.name) {
+      if (sPin.trim() !== TEST_STUDENT.pin) {
+        setError("비밀번호가 일치하지 않습니다.");
+        return;
+      }
+      setAuthLoading(true);
+      try {
+        await onLogin({ ...TEST_STUDENT.profile }, "student");
+      } catch {
+        setAuthLoading(false);
+        setError("로그인 처리 중 오류가 발생했습니다.");
+      }
+      return;
+    }
     setAuthLoading(true);
     setStudentChecking(true);
     try {

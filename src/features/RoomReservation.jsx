@@ -38,7 +38,7 @@ function RoomReservation({ user, reservations, updateReservations, addLog, addNo
   const [showWeekendPopup, setShowWeekendPopup] = useState(false);
   const [error, setError] = useState("");
 
-  const toggleSlot = (id) => setSelectedSlots(prev => prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]);
+  const toggleSlot = (id) => setSelectedSlots(prev => prev.includes(id) ? [] : [id]);
 
   const bookedSlots = useMemo(() => {
     if (!selectedRoom || !selectedDate) return new Set();
@@ -51,7 +51,7 @@ function RoomReservation({ user, reservations, updateReservations, addLog, addNo
 
 
   const handleSubmit = () => {
-    if (!selectedRoom || selectedSlots.length === 0) return;
+    if (!selectedRoom || selectedSlots.length !== 1) return;
     if (isWeekend(selectedDate)) {
       setError("주말은 예약할 수 없습니다.");
       return;
@@ -71,7 +71,7 @@ function RoomReservation({ user, reservations, updateReservations, addLog, addNo
       const slotLabels = selectedSlots.map(sid => TIME_SLOTS.find(t => t.id === sid)?.label).filter(Boolean).sort();
       const isCADRoom = selectedRoom === "604";
       const res = {
-        id: uid(), type: "room", studentId: user.id, studentName: user.name, studentDept: user.dept,
+        id: uid(), type: "room", studentId: user.id, studentName: user.name, studentDept: user.dept, studentEmail: user.email || "",
         roomId: selectedRoom, roomName: room.name, date: selectedDate, slots: selectedSlots, slotLabels,
         purpose: purpose || "개인 작업", members: parseInt(members) || 1,
         status: isCADRoom ? "pending" : "approved", createdAt: ts(), autoApproved: !isCADRoom,
@@ -272,13 +272,13 @@ function RoomReservation({ user, reservations, updateReservations, addLog, addNo
                   <Input label="사용 인원" type="number" min="1" max="30" value={members} onChange={e => setMembers(e.target.value)} style={{ maxWidth: 100 }} />
                 </div>
 
-                <label style={{ fontSize: 11, fontWeight: 600, color: theme.textMuted, letterSpacing: "0.5px", textTransform: "uppercase", display: "block", marginBottom: 10 }}>시간대 선택 (복수 가능)</label>
+                <label style={{ fontSize: 11, fontWeight: 600, color: theme.textMuted, letterSpacing: "0.5px", textTransform: "uppercase", display: "block", marginBottom: 10 }}>시간대 선택 (1개만 선택 가능)</label>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(115px, 1fr))", gap: 6 }}>
                   {TIME_SLOTS.map(slot => {
                     const booked = bookedSlots.has(slot.id);
                     const sel = selectedSlots.includes(slot.id);
                     return (
-                      <button key={slot.id} disabled={booked} onClick={() => !booked && toggleSlot(slot.id)}
+                      <button key={slot.id} disabled={booked} aria-pressed={sel} onClick={() => !booked && toggleSlot(slot.id)}
                         style={{
                           padding: "9px 8px", borderRadius: theme.radiusSm, fontSize: 12, fontWeight: 500,
                           fontFamily: theme.fontMono, cursor: booked ? "not-allowed" : "pointer",
@@ -320,7 +320,7 @@ function RoomReservation({ user, reservations, updateReservations, addLog, addNo
                 </Card>
               )}
 
-              <Button size="lg" onClick={handleSubmit} disabled={selectedSlots.length === 0 || !purpose.trim() || submitting || isWeekend(selectedDate) || isPast(selectedDate)}
+              <Button size="lg" onClick={handleSubmit} disabled={selectedSlots.length !== 1 || !purpose.trim() || submitting || isWeekend(selectedDate) || isPast(selectedDate)}
                 style={{ width: "100%", justifyContent: "center", marginBottom: 40 }}>
                 {submitting ? "처리 중..." : isPast(selectedDate) ? "과거 날짜는 예약할 수 없습니다" : isWeekend(selectedDate) ? "주말은 예약할 수 없습니다" : `예약 신청 (${selectedSlots.length}시간)`}
               </Button>

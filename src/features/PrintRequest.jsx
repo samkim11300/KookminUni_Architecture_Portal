@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import theme from "../constants/theme";
 import { EDITABLE } from "../constants/data";
 import { uid, ts } from "../utils/helpers";
@@ -6,7 +6,7 @@ import Icons from "../components/Icons";
 import { Badge, Card, Button, Input, SectionTitle, Empty, AlertPopup } from "../components/ui";
 
 // ─── Print Request (출력 신청) ───────────────────────────────────
-const PRINT_SIZE_OPTIONS = ["A2", "A1", "900x1200", "900x1800", "600x1500"];
+const PRINT_SIZE_OPTIONS = ["A2(420x594)", "A1(594x841)", "900x1200", "900x1800", "600x1500"];
 const PRINT_TYPE_OPTIONS = ["COATED_DRAWING", "COATED_IMAGE", "MATT_IMAGE", "GLOSS_IMAGE"];
 const PRINT_TYPE_LABELS = {
   COATED_DRAWING: "Coated(도면)",
@@ -17,14 +17,14 @@ const PRINT_TYPE_LABELS = {
   COLOR: "컬러",
 };
 const PRINT_PRICES = {
-  A2_COATED_DRAWING: 700,
-  A2_COATED_IMAGE: 1400,
-  A2_MATT_IMAGE: 2100,
-  A2_GLOSS_IMAGE: 4200,
-  A1_COATED_DRAWING: 1400,
-  A1_COATED_IMAGE: 2800,
-  A1_MATT_IMAGE: 3500,
-  A1_GLOSS_IMAGE: 7000,
+  "A2(420x594)_COATED_DRAWING": 700,
+  "A2(420x594)_COATED_IMAGE": 1400,
+  "A2(420x594)_MATT_IMAGE": 2100,
+  "A2(420x594)_GLOSS_IMAGE": 4200,
+  "A1(594x841)_COATED_DRAWING": 1400,
+  "A1(594x841)_COATED_IMAGE": 2800,
+  "A1(594x841)_MATT_IMAGE": 3500,
+  "A1(594x841)_GLOSS_IMAGE": 7000,
   "900x1200_COATED_DRAWING": 2800,
   "900x1200_COATED_IMAGE": 4900,
   "900x1200_MATT_IMAGE": 7000,
@@ -47,20 +47,31 @@ const PRINT_PLUS600_PRICES = {
 
 const KAKAO_BANK_ACCOUNT = "3333-35-7572363 [김경호]"; // 카카오뱅크 계좌번호
 
-function PrintRequest({ user, printRequests, updatePrintRequests, addLog, addNotification, syncPrintToSheet, sendEmailNotification, isMobile }) {
-  const [paperSize, setPaperSize] = useState("A2");
+// 입금 캡처 허용 타입 — 클립보드로 붙여넣은 이미지는 파일명이 없으므로 MIME으로 확장자를 정한다
+const PROOF_MIME_EXT = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/jpg": "jpg",
+};
+
+function PrintRequest({ user, printRequests, updatePrintRequests, addLog, addNotification, syncPrintToSheet, sendEmailNotification, printNotice, isMobile }) {
+  const [paperSize, setPaperSize] = useState("A2(420x594)");
   const [colorMode, setColorMode] = useState("COATED_DRAWING");
   const [copies, setCopies] = useState(1);
   const [plus600Count, setPlus600Count] = useState(0);
-  const [printFile, setPrintFile] = useState(null);
   const [paymentProof, setPaymentProof] = useState(null);
+  const [proofDragOver, setProofDragOver] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showPopup, setShowPopup] = useState(false);
   const [lastRequest, setLastRequest] = useState(null);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [emailSentChecked, setEmailSentChecked] = useState(false);
-  const printFileRef = useRef(null);
   const paymentFileRef = useRef(null);
+
+  const bankAccount = printNotice?.bankAccount || "카카오뱅크 3333-35-7572363 [김경호]";
+  const operatingHours = printNotice?.operatingHours || "평일 10:00~17:00 (점심시간 12:00~13:00 제외)";
+  const pickupLocation = printNotice?.pickupLocation || "건축대학 출력실 (복지관 6층)";
+  const noticeText = printNotice?.noticeText || "표 기준은 1장 단가이며, +600은 추가 600mm 길이 기준입니다.";
 
   const priceKey = `${paperSize}_${colorMode}`;
   const unitPrice = PRINT_PRICES[priceKey] || 0;
@@ -68,25 +79,56 @@ function PrintRequest({ user, printRequests, updatePrintRequests, addLog, addNot
   const colorModeLabel = PRINT_TYPE_LABELS[colorMode] || colorMode;
   const totalPrice = (unitPrice * copies) + (plus600UnitPrice * plus600Count * copies);
 
-  const MAX_FILE_SIZE = 25 * 1024 * 1024;
-  const isLargeFile = printFile && printFile.size >= MAX_FILE_SIZE;
-
-  const handlePrintFileUpload = (e) => {
-    const file = e.target.files?.[0];
+  // 파일 선택 / 붙여넣기 / 드래그앤드롭 공통 처리
+  const applyProofFile = (file) => {
     if (!file) return;
-    setPrintFile({ name: file.name, size: file.size, type: file.type, rawFile: file });
-    setEmailSentChecked(false);
+    const type = (file.type || "").toLowerCase();
+    const ext = PROOF_MIME_EXT[type];
+    if (!ext) {
+      alert("입금 캡처는 JPG 또는 PNG 이미지만 업로드할 수 있습니다.");
+      return;
+    }
+    // 클립보드 이미지는 파일명이 없거나 확장자가 없다 → 직접 만들어준다
+    const name = file.name && file.name.includes(".") ? file.name : `입금캡처_${Date.now()}.${ext}`;
+    setPaymentProof({
+      name, size: file.size, type, rawFile: file,
+      previewUrl: URL.createObjectURL(file),
+    });
   };
+
+  // 미리보기 URL 정리 (교체 · 삭제 · 언마운트)
+  useEffect(() => {
+    const url = paymentProof?.previewUrl;
+    return () => { if (url) URL.revokeObjectURL(url); };
+  }, [paymentProof]);
 
   const handlePaymentUpload = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setPaymentProof({ name: file.name, size: file.size, type: file.type, rawFile: file });
+    applyProofFile(e.target.files?.[0]);
+    e.target.value = ""; // 같은 파일 재선택 시에도 onChange가 발생하도록
   };
 
+  const extractImageFile = (dataTransfer) => {
+    const items = Array.from(dataTransfer?.items || []);
+    const imageItem = items.find(it => it.kind === "file" && it.type.startsWith("image/"));
+    return imageItem ? imageItem.getAsFile() : dataTransfer?.files?.[0] || null;
+  };
+
+  // 데스크톱: 화면 어디서든 Ctrl+V로 입금 캡처 붙여넣기
+  useEffect(() => {
+    if (isMobile) return;
+    const onPaste = (e) => {
+      const file = extractImageFile(e.clipboardData);
+      if (!file || !file.type?.startsWith("image/")) return;
+      e.preventDefault();
+      applyProofFile(file);
+    };
+    document.addEventListener("paste", onPaste);
+    return () => document.removeEventListener("paste", onPaste);
+  }, [isMobile]);
+
   const handleSubmit = async () => {
-    if (!printFile) {
-      alert("출력할 파일을 업로드해주세요.");
+    if (!emailSentChecked) {
+      alert("출력 파일을 메일로 전송했는지 확인 후 체크해주세요.");
       return;
     }
     if (!paymentProof) {
@@ -114,7 +156,9 @@ function PrintRequest({ user, printRequests, updatePrintRequests, addLog, addNot
       // 날짜 폴더 (YY.MM.DD)
       const now = new Date();
       const dateFolder = `${String(now.getFullYear()).slice(-2)}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")}`;
-      const paymentExt = (paymentProof.name || "img").split(".").pop() || "jpg";
+      const paymentExt = PROOF_MIME_EXT[paymentProof.type]
+        || (paymentProof.name?.includes(".") ? paymentProof.name.split(".").pop() : "")
+        || "jpg";
 
       const gasUrl = EDITABLE.printArchive?.gasUrl?.trim();
       if (!gasUrl) {
@@ -187,39 +231,13 @@ function PrintRequest({ user, printRequests, updatePrintRequests, addLog, addNot
         }
       };
 
-      let printResult = null;
+      // 출력 파일은 항상 이메일로 전송받으므로 입금 캡처만 업로드
       let paymentResult = null;
-
-      // 25MB 이상: 출력 파일은 이메일로 전송했으므로 입금 캡처만 업로드
-      if (isLargeFile) {
-        const paymentBase64 = await readAsBase64(paymentProof.rawFile);
-        const paymentUploadResult = await uploadToGAS(paymentBase64, paymentFileName, paymentProof.type);
-        paymentResult = paymentUploadResult;
-        if (!paymentResult?.fileId) {
-          paymentResult = await waitForFile(paymentFileName);
-        }
-      } else {
-        const printExt = (printFile.name || "file").split(".").pop() || "bin";
-        const printFileName = `[출력파일]${paperSize}_${colorModeLabel}_${copies}장_${user.id}-${user.name}.${printExt}`;
-
-        const [printBase64, paymentBase64] = await Promise.all([
-          readAsBase64(printFile.rawFile),
-          readAsBase64(paymentProof.rawFile),
-        ]);
-
-        // 순차 업로드 (GAS 동시 실행 제한 회피)
-        const printUploadResult = await uploadToGAS(printBase64, printFileName, printFile.type);
-        const paymentUploadResult = await uploadToGAS(paymentBase64, paymentFileName, paymentProof.type);
-
-        printResult = printUploadResult;
-        paymentResult = paymentUploadResult;
-
-        if (!printResult?.fileId) {
-          printResult = await waitForFile(printFileName);
-        }
-        if (!paymentResult?.fileId) {
-          paymentResult = await waitForFile(paymentFileName);
-        }
+      const paymentBase64 = await readAsBase64(paymentProof.rawFile);
+      const paymentUploadResult = await uploadToGAS(paymentBase64, paymentFileName, paymentProof.type);
+      paymentResult = paymentUploadResult;
+      if (!paymentResult?.fileId) {
+        paymentResult = await waitForFile(paymentFileName);
       }
 
       const newRequest = {
@@ -237,10 +255,11 @@ function PrintRequest({ user, printRequests, updatePrintRequests, addLog, addNot
         plus600UnitPrice,
         plus600Price: plus600UnitPrice * plus600Count * copies,
         printFile: {
-          name: printFile.name, size: printFile.size, type: printFile.type,
-          driveFileId: printResult?.fileId || null,
-          driveUrl: printResult?.downloadUrl || null,
-          emailSent: isLargeFile || false,
+          name: `${paperSize}_${colorModeLabel}_${copies}장 (메일 전송)`,
+          size: 0, type: "email",
+          driveFileId: null,
+          driveUrl: null,
+          emailSent: true,
         },
         paymentProof: { name: paymentProof.name, size: paymentProof.size, type: paymentProof.type, driveFileId: paymentResult.fileId, driveUrl: paymentResult.viewUrl },
         status: "pending",
@@ -261,8 +280,8 @@ function PrintRequest({ user, printRequests, updatePrintRequests, addLog, addNot
       });
 
       setLastRequest(newRequest);
-      setPrintFile(null);
       setPaymentProof(null);
+      setEmailSentChecked(false);
       setCopies(1);
       setPlus600Count(0);
       setShowPopup(true);
@@ -313,10 +332,10 @@ function PrintRequest({ user, printRequests, updatePrintRequests, addLog, addNot
         </div>
 
         <div style={{ fontSize: 12, color: theme.textMuted, lineHeight: 1.6 }}>
-          💳 <strong>입금 계좌:</strong> 카카오뱅크 {KAKAO_BANK_ACCOUNT}<br />
-          🕒 <strong>운영시간:</strong> 평일 10:00~17:00 (점심시간 12:00~13:00 제외)<br />
-          📍 <strong>수령장소:</strong> 건축대학 출력실 (복지관 6층)<br />
-          ℹ️ <strong>안내:</strong> 표 기준은 1장 단가이며, <code>+600</code>은 추가 600mm 길이 기준입니다.
+          💳 <strong>입금 계좌:</strong> {bankAccount}<br />
+          🕒 <strong>운영시간:</strong> {operatingHours}<br />
+          📍 <strong>수령장소:</strong> {pickupLocation}<br />
+          ℹ️ <strong>안내:</strong> {noticeText}
         </div>
         <div style={{ marginTop: 10, fontSize: 12, color: theme.textMuted }}>
           <strong>+600mm 추가금(개당):</strong>{" "}
@@ -512,60 +531,86 @@ function PrintRequest({ user, printRequests, updatePrintRequests, addLog, addNot
         </div>
 
         <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: theme.textMuted, marginBottom: 8 }}>출력 파일 업로드 <span style={{ color: theme.red }}>*</span></div>
-          <input type="file" ref={printFileRef} onChange={handlePrintFileUpload} accept=".pdf,.jpg,.jpeg,.png,.ai,.psd,.dwg" style={{ display: "none" }} />
-          <button onClick={() => printFileRef.current?.click()} style={{
-            width: "100%", padding: 16, borderRadius: 8,
-            border: `2px dashed ${printFile ? (isLargeFile ? theme.yellow : theme.green) : theme.border}`,
-            background: printFile ? (isLargeFile ? theme.yellowBg : theme.greenBg) : "transparent",
-            color: printFile ? (isLargeFile ? theme.yellow : theme.green) : theme.textMuted,
-            fontSize: 13, cursor: "pointer", fontFamily: theme.font, textAlign: "center",
-          }}>
-            {printFile
-              ? `${isLargeFile ? "⚠️" : "✅"} ${printFile.name} (${(printFile.size / 1024 / 1024).toFixed(1)}MB)`
-              : "📎 파일을 선택하세요 (PDF, JPG, PNG, AI, PSD, DWG)"}
-          </button>
-          {isLargeFile && (
-            <div style={{ marginTop: 10, padding: "12px 14px", background: theme.yellowBg, borderRadius: 8, border: `1px solid ${theme.yellow}` }}>
-              <div style={{ fontSize: 12, color: theme.yellow, fontWeight: 600, marginBottom: 8 }}>
-                ⚠️ 파일 용량이 25MB를 초과합니다 ({(printFile.size / 1024 / 1024).toFixed(1)}MB)
-              </div>
-              <div style={{ fontSize: 12, color: theme.textMuted, lineHeight: 1.6, marginBottom: 10 }}>
-                sakucopy@kookmin.ac.kr 이메일로 출력 파일만 보내주신 후, 체크박스 눌러주시고 입금내역캡처파일은 업로드해주셔야 합니다!
-                <br />파일 제목 예시 - A2_Coated_1장_20xxxxx홍길동
-              </div>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: theme.text, fontWeight: 600 }}>
-                <input
-                  type="checkbox"
-                  checked={emailSentChecked}
-                  onChange={e => setEmailSentChecked(e.target.checked)}
-                  style={{ width: 18, height: 18, accentColor: theme.accent, cursor: "pointer" }}
-                />
-                이메일로 출력 파일을 발송했습니다
-              </label>
+          <div style={{ fontSize: 12, fontWeight: 600, color: theme.textMuted, marginBottom: 8 }}>출력 파일 전송 <span style={{ color: theme.red }}>*</span></div>
+          <div style={{ padding: "12px 14px", background: theme.yellowBg, borderRadius: 8, border: `1px solid ${theme.yellow}` }}>
+            <div style={{ fontSize: 12, color: theme.textMuted, lineHeight: 1.6, marginBottom: 10 }}>
+              출력 파일은 <strong>sakucopy@kookmin.ac.kr</strong> 이메일로 보내주신 후 아래 항목을 체크해주세요.
+              <br />파일 제목 예시 - A2_Coated_1장_20xxxxx홍길동
             </div>
-          )}
+            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: theme.text, fontWeight: 600 }}>
+              <input
+                type="checkbox"
+                checked={emailSentChecked}
+                onChange={e => setEmailSentChecked(e.target.checked)}
+                style={{ width: 18, height: 18, accentColor: theme.accent, cursor: "pointer" }}
+              />
+              출력 파일을 메일로 전송했습니다
+            </label>
+          </div>
         </div>
 
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: theme.textMuted, marginBottom: 8 }}>입금 완료 캡처 <span style={{ color: theme.red }}>*</span></div>
           <div style={{ fontSize: 11, color: theme.yellow, marginBottom: 8, padding: "8px 12px", background: theme.yellowBg, borderRadius: 6 }}>
-            💡 카카오뱅크 {KAKAO_BANK_ACCOUNT}로 {totalPrice.toLocaleString()}원을 입금 후 캡처해주세요
+            💡 {bankAccount}로 {totalPrice.toLocaleString()}원을 입금 후 캡처해주세요
           </div>
           <input type="file" ref={paymentFileRef} onChange={handlePaymentUpload} accept=".jpg,.jpeg,.png" style={{ display: "none" }} />
-          <button onClick={() => paymentFileRef.current?.click()} style={{
-            width: "100%", padding: 16, borderRadius: 8, border: `2px dashed ${paymentProof ? theme.green : theme.border}`,
-            background: paymentProof ? theme.greenBg : "transparent", color: paymentProof ? theme.green : theme.textMuted,
-            fontSize: 13, cursor: "pointer", fontFamily: theme.font, textAlign: "center",
-          }}>
-            {paymentProof ? `✅ ${paymentProof.name}` : "💰 입금 캡처 이미지를 업로드하세요"}
-          </button>
+          <div
+            tabIndex={0}
+            onClick={() => paymentFileRef.current?.click()}
+            onPaste={e => { const f = extractImageFile(e.clipboardData); if (f?.type?.startsWith("image/")) { e.preventDefault(); applyProofFile(f); } }}
+            onDragOver={e => { e.preventDefault(); setProofDragOver(true); }}
+            onDragLeave={() => setProofDragOver(false)}
+            onDrop={e => { e.preventDefault(); setProofDragOver(false); applyProofFile(extractImageFile(e.dataTransfer)); }}
+            style={{
+              width: "100%", padding: 16, borderRadius: 8, boxSizing: "border-box",
+              border: `2px dashed ${proofDragOver ? theme.accent : paymentProof ? theme.green : theme.border}`,
+              background: proofDragOver ? theme.accentBg : paymentProof ? theme.greenBg : "transparent",
+              color: paymentProof ? theme.green : theme.textMuted,
+              fontSize: 13, cursor: "pointer", fontFamily: theme.font, textAlign: "center", outline: "none",
+            }}
+          >
+            {paymentProof ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 12, textAlign: "left" }}>
+                <img
+                  src={paymentProof.previewUrl}
+                  alt="입금 캡처 미리보기"
+                  style={{ width: 64, height: 64, flexShrink: 0, objectFit: "cover", borderRadius: 6, border: `1px solid ${theme.border}`, background: "#fff" }}
+                />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: theme.green, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    ✅ {paymentProof.name}
+                  </div>
+                  <div style={{ fontSize: 11, color: theme.textMuted, marginTop: 2 }}>
+                    {Math.max(1, Math.round(paymentProof.size / 1024)).toLocaleString()}KB · {isMobile ? "탭하면 다시 선택할 수 있습니다" : "다시 올리려면 클릭 또는 Ctrl+V"}
+                  </div>
+                </div>
+                <span
+                  onClick={e => { e.stopPropagation(); setPaymentProof(null); }}
+                  style={{ flexShrink: 0, fontSize: 11, fontWeight: 600, color: theme.red, padding: "6px 10px", border: `1px solid ${theme.red}`, borderRadius: 6, cursor: "pointer" }}
+                >
+                  삭제
+                </span>
+              </div>
+            ) : (
+              <>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>💰 입금 캡처 이미지를 업로드하세요</div>
+                <div style={{ fontSize: 11, marginTop: 4, opacity: 0.75 }}>
+                  {isMobile ? "탭해서 이미지를 선택해주세요" : "클릭해서 선택 · Ctrl+V로 붙여넣기 · 드래그해서 놓기"}
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
-        <Button size="lg" onClick={handleSubmit} disabled={submitting || !printFile || !paymentProof || (isLargeFile && !emailSentChecked)} style={{ width: "100%", justifyContent: "center" }}>
-          {submitting ? "신청 중..." : (isLargeFile && !emailSentChecked
-            ? "입금캡처파일 업로드 필요"
-            : "출력 신청하기")}
+        <Button size="lg" onClick={handleSubmit} disabled={submitting || !emailSentChecked || !paymentProof} style={{ width: "100%", justifyContent: "center" }}>
+          {submitting
+            ? "신청 중..."
+            : !emailSentChecked
+              ? "메일 전송 확인 필요"
+              : !paymentProof
+                ? "입금캡처파일 업로드 필요"
+                : "출력 신청하기"}
         </Button>
       </Card>
 

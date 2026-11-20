@@ -13,6 +13,12 @@ const PRINT_TYPE_LABELS = {
   COLOR: "컬러",
 };
 
+// 입금내역 캡처 미리보기용 Google Drive 썸네일 URL
+const paymentThumbUrl = (req, size = 400) =>
+  req?.paymentProof?.driveFileId
+    ? `https://drive.google.com/thumbnail?id=${req.paymentProof.driveFileId}&sz=w${size}`
+    : null;
+
 function PrintManagement({ printRequests, updatePrintRequests, refreshPrintRequests, addLog, workerName, sendEmailNotification, archivePrintsToDrive }) {
   const [filter, setFilter] = useState("pending");
   const [modalRequest, setModalRequest] = useState(null);
@@ -328,6 +334,30 @@ function PrintManagement({ printRequests, updatePrintRequests, refreshPrintReque
                       📁 구글 드라이브[Portal_출력대기]에 파일 있음 {req.printFile?.driveUrl ? "→" : ""}
                     </a>
                   )}
+                  {/* 입금내역 미리보기 */}
+                  {paymentThumbUrl(req) && (
+                    <div style={{ marginTop: 8 }}>
+                      <div style={{ fontSize: 11, color: theme.textMuted, marginBottom: 4 }}>💳 입금내역</div>
+                      <a
+                        href={req.paymentProof?.driveUrl || paymentThumbUrl(req, 1000)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={e => e.stopPropagation()}
+                        style={{ display: "inline-block", lineHeight: 0 }}
+                      >
+                        <img
+                          src={paymentThumbUrl(req, 400)}
+                          alt="입금내역"
+                          loading="lazy"
+                          style={{
+                            maxWidth: 180, maxHeight: 120, borderRadius: 8,
+                            border: `1px solid ${theme.border}`, objectFit: "cover", background: theme.surface,
+                          }}
+                          onError={e => { e.currentTarget.parentElement.style.display = "none"; }}
+                        />
+                      </a>
+                    </div>
+                  )}
                   {/* 반려 사유 표시 */}
                   {req.status === "rejected" && req.rejectReason && (
                     <div style={{ fontSize: 12, color: theme.red, marginTop: 6 }}>
@@ -401,6 +431,29 @@ function PrintManagement({ printRequests, updatePrintRequests, refreshPrintReque
                   </div>
                 </div>
               </div>
+
+              {/* 입금내역 미리보기 */}
+              {paymentThumbUrl(modalRequest) && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: theme.textMuted, marginBottom: 8 }}>입금내역 캡처</div>
+                  <a
+                    href={modalRequest.paymentProof?.driveUrl || paymentThumbUrl(modalRequest, 1000)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ display: "block", lineHeight: 0 }}
+                  >
+                    <img
+                      src={paymentThumbUrl(modalRequest, 1000)}
+                      alt="입금내역"
+                      style={{
+                        width: "100%", maxHeight: 360, borderRadius: 8,
+                        border: `1px solid ${theme.border}`, objectFit: "contain", background: theme.surface,
+                      }}
+                      onError={e => { e.currentTarget.parentElement.parentElement.style.display = "none"; }}
+                    />
+                  </a>
+                </div>
+              )}
 
               {/* 반려 사유 표시 (반려된 건) */}
               {modalRequest.status === "rejected" && modalRequest.rejectReason && (
