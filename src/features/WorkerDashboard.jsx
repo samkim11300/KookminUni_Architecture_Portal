@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { EDITABLE, ROOMS, TIME_SLOTS } from "../constants/data";
+import { EDITABLE, TIME_SLOTS } from "../constants/data";
 import theme from "../constants/theme";
 import { ts } from "../utils/helpers";
 import Icons from "../components/Icons";
@@ -35,8 +35,6 @@ function WorkerDashboard({ reservations, updateReservations, equipRentals, updat
 
   // 통계 데이터 계산
   const totalReservations = reservations.length;
-  const completedReservations = reservations.filter(r => r.status === "approved" || r.status === "completed").length;
-  const cancelledReservations = reservations.filter(r => r.status === "cancelled" || r.status === "rejected").length;
   const totalRentals = equipRentals.length;
   const returnedRentals = equipRentals.filter(r => r.status === "returned").length;
 
@@ -45,61 +43,6 @@ function WorkerDashboard({ reservations, updateReservations, equipRentals, updat
   const resDateRange = resDates.length > 0
     ? `${resDates[0]} ~ ${resDates[resDates.length - 1]}`
     : today;
-
-  // 실기실별 예약 통계
-  const roomStats = ROOMS.map(room => ({
-    name: room.name.replace("실기실 ", ""),
-    count: reservations.filter(r => r.roomId === room.id && r.status === "approved").length
-  }));
-  const maxRoomCount = Math.max(...roomStats.map(r => r.count), 1);
-
-  // 이번 주 월~일 날짜 배열
-  const weekDays = (() => {
-    const now = new Date();
-    const dow = now.getDay(); // 0=일, 1=월, ...
-    const monday = new Date(now);
-    monday.setDate(now.getDate() - (dow === 0 ? 6 : dow - 1));
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(monday);
-      d.setDate(monday.getDate() + i);
-      return d.toISOString().slice(0, 10);
-    });
-  })();
-  const dayLabels = ["월", "화", "수", "목", "금", "토", "일"];
-
-  // 주간 예약 통계 (월~일 고정)
-  const dailyStats = weekDays.map((date, i) => ({
-    date,
-    day: dayLabels[i],
-    count: reservations.filter(r => r.date === date && r.status === "approved").length
-  }));
-  const maxDailyCount = 20;
-
-  // 도넛 차트 렌더링 함수
-  const DonutChart = ({ data, size = 120, strokeWidth = 16 }) => {
-    const total = data.reduce((sum, d) => sum + d.value, 0) || 1;
-    const radius = (size - strokeWidth) / 2;
-    const circumference = 2 * Math.PI * radius;
-    let offset = 0;
-
-    return (
-      <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
-        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={theme.surface} strokeWidth={strokeWidth} />
-        {data.map((d, i) => {
-          const dashLength = (d.value / total) * circumference;
-          const segment = (
-            <circle key={i} cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={d.color} strokeWidth={strokeWidth}
-              strokeDasharray={`${dashLength} ${circumference - dashLength}`}
-              strokeDashoffset={-offset}
-              style={{ transition: "stroke-dasharray 0.5s, stroke-dashoffset 0.5s" }}
-            />
-          );
-          offset += dashLength;
-          return segment;
-        })}
-      </svg>
-    );
-  };
 
   // 원형 진행률 표시 컴포넌트
   const CircularProgress = ({ value, max, size = 50, color }) => {
@@ -563,66 +506,7 @@ function WorkerDashboard({ reservations, updateReservations, equipRentals, updat
             <span style={{ fontSize: 11, color: theme.textDim, transition: "transform 0.2s", display: "inline-block", transform: analyticsOpen ? "rotate(180deg)" : "rotate(0deg)" }}>▼</span>
           </div>
         </div>
-        <div style={{ maxHeight: analyticsOpen ? 1200 : 0, overflow: "hidden", transition: "max-height 0.4s ease-in-out" }}>
-          {/* 도넛 + 주간 차트 + 실기실별 이용 */}
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12, marginBottom: 12 }}>
-            {/* 주간 예약 현황 */}
-            <Card style={{ padding: 18 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: theme.text }}>주간 예약 현황</div>
-                <div style={{ fontSize: 11, color: theme.textMuted }}>{weekDays[0]} ~ {weekDays[6]}</div>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", height: 180, position: "relative" }}>
-                <div style={{ position: "absolute", left: 0, top: 0, bottom: 24, display: "flex", flexDirection: "column", justifyContent: "space-between", fontSize: 10, color: theme.textDim, width: 20, textAlign: "right" }}>
-                  <span>20</span><span>10</span><span>0</span>
-                </div>
-                <div style={{ flex: 1, display: "flex", alignItems: "flex-end", gap: 4, marginLeft: 28 }}>
-                  {dailyStats.map((d, i) => (
-                    <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1, height: "100%" }}>
-                      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", width: "100%" }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: theme.text, fontFamily: theme.fontMono, marginBottom: 4 }}>{d.count}</span>
-                        <div style={{ width: "60%", maxWidth: 32, height: `${Math.max((d.count / maxDailyCount) * 100, 4)}%`, background: d.date === today ? theme.accent : theme.blue, borderRadius: "4px 4px 0 0", transition: "height 0.3s", minHeight: 4 }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div style={{ display: "flex", marginLeft: 28, marginTop: 6 }}>
-                  {dailyStats.map((d, i) => (
-                    <span key={i} style={{ flex: 1, textAlign: "center", fontSize: 11, fontWeight: d.date === today ? 700 : 400, color: d.date === today ? theme.accent : theme.textDim }}>{d.day}</span>
-                  ))}
-                </div>
-              </div>
-            </Card>
-
-            {/* 실기실별 이용 + 도넛 */}
-            <Card style={{ padding: 18 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: theme.text }}>예약 현황</div>
-              </div>
-              <div style={{ display: "flex", gap: 16, alignItems: "center", marginBottom: 16 }}>
-                <DonutChart data={[{ value: completedReservations, color: theme.green }, { value: pendingRes.length, color: theme.yellow }, { value: cancelledReservations, color: theme.red }]} size={60} strokeWidth={8} />
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}><span style={{ width: 8, height: 8, borderRadius: 4, background: theme.green }} /><span style={{ color: theme.textMuted }}>승인 {completedReservations}</span></div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}><span style={{ width: 8, height: 8, borderRadius: 4, background: theme.yellow }} /><span style={{ color: theme.textMuted }}>대기 {pendingRes.length}</span></div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}><span style={{ width: 8, height: 8, borderRadius: 4, background: theme.red }} /><span style={{ color: theme.textMuted }}>취소 {cancelledReservations}</span></div>
-                </div>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {roomStats.slice(0, 5).map((room, i) => (
-                  <div key={i}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-                      <span style={{ fontSize: 11, color: theme.textMuted }}>{room.name}</span>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: theme.text }}>{room.count}</span>
-                    </div>
-                    <div style={{ height: 4, background: theme.surface, borderRadius: 2, overflow: "hidden" }}>
-                      <div style={{ height: "100%", width: `${(room.count / maxRoomCount) * 100}%`, background: `linear-gradient(90deg, ${theme.accent}, ${theme.yellow})`, borderRadius: 2, transition: "width 0.3s" }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          </div>
-
+        <div style={{ maxHeight: analyticsOpen ? 1600 : 0, overflow: "hidden", transition: "max-height 0.4s ease-in-out" }}>
           {/* 방문자 통계 (일간/주간/월간 선 그래프) */}
           <Card style={{ padding: 0, overflow: "hidden" }}>
             {(() => {
@@ -828,6 +712,7 @@ function WorkerDashboard({ reservations, updateReservations, equipRentals, updat
               );
             })()}
           </Card>
+
         </div>
       </div>
     </div>
